@@ -1,5 +1,5 @@
-DOMAIN-SUFFIX,apple-relay.apple.com,PROXY
-DOMAIN-SUFFIX,mask-api.icloud.com,PROXY
-DOMAIN-SUFFIX,seed.siri.apple.com,PROXY
-DOMAIN-SUFFIX,apple-relay.cloudflare.com,PROXY
-DOMAIN-SUFFIX,apple-relay,PROXY
+DOMAIN-SUFFIX,apple-relay.apple.com
+DOMAIN-SUFFIX,mask-api.icloud.com
+DOMAIN-SUFFIX,seed.siri.apple.com
+DOMAIN-SUFFIX,apple-relay.cloudflare.com
+DOMAIN-SUFFIX,apple-relay
