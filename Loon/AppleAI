@@ -1,0 +1,43 @@
+# =========================================
+# Apple Intelligence 核心服务 (Private Cloud Compute)
+# 作用：负责处理复杂的 AI 任务，必须走美国代理
+# =========================================
+DOMAIN-SUFFIX,apple-cloud-relay.com
+DOMAIN-SUFFIX,humb.apple.com
+
+# =========================================
+# Siri 与 搜索建议
+# 作用：Siri 也是 AI 的入口，必须防泄露
+# =========================================
+DOMAIN-SUFFIX,guzzoni.apple.com
+DOMAIN-SUFFIX,smoot.apple.com
+
+# =========================================
+# Private Relay 架构
+# 作用：AI 数据传输依赖的隐私通道
+# =========================================
+DOMAIN-SUFFIX,apple-relay.apple.com
+DOMAIN-SUFFIX,apple-relay.cloudflare.com
+DOMAIN-SUFFIX,apple-relay.fastly-edge.com
+DOMAIN,mask.apple-dns.net
+
+# =========================================
+# ChatGPT 集成补丁 (关键)
+# 作用：解决 Siri 设置里 ChatGPT 选项变灰的问题
+# =========================================
+DOMAIN-SUFFIX,openai.com
+DOMAIN-SUFFIX,chatgpt.com
+DOMAIN-SUFFIX,auth0.openai.com
+DOMAIN,ios.chat.openai.com
+
+# =========================================
+# Apple 地区功能验证
+# 作用：确保系统认为你在支持 AI 的地区
+# =========================================
+DOMAIN,xp.apple.com
+DOMAIN,bag.itunes.apple.com
+
+# =========================================
+# 连通性测试 (可选)
+# =========================================
+DOMAIN-SUFFIX,cp4.cloudflare.com
