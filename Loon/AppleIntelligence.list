@@ -12,6 +12,16 @@ DOMAIN-SUFFIX,apple-relay.cloudflare.com
 DOMAIN-SUFFIX,apple-relay.fastly-edge.com
 DOMAIN,mask.apple-dns.net
 
+# OpenAI 鉴权与 API (必须走美国节点)
+DOMAIN-SUFFIX,openai.com
+DOMAIN-SUFFIX,chatgpt.com
+DOMAIN-SUFFIX,auth0.openai.com
+DOMAIN-SUFFIX,identrust.com
+
+# 扩展功能所需的具体服务
+DOMAIN,ios.chat.openai.com
+DOMAIN-SUFFIX,features.openai.com
+
 # 连通性测试 (可选)
 DOMAIN-SUFFIX,cp4.cloudflare.com
 
