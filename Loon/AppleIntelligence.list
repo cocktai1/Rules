@@ -1,5 +1,18 @@
+# Apple Intelligence 核心服务 (Private Cloud Compute)
+DOMAIN-SUFFIX,apple-cloud-relay.com
+DOMAIN-SUFFIX,humb.apple.com
+
+# Siri 与 搜索建议 (Siri 也是 AI 的入口)
+DOMAIN-SUFFIX,guzzoni.apple.com
+DOMAIN-SUFFIX,smoot.apple.com
+
+# Private Relay 架构 (AI 数据传输依赖)
 DOMAIN-SUFFIX,apple-relay.apple.com
-DOMAIN-SUFFIX,mask-api.icloud.com
-DOMAIN-SUFFIX,seed.siri.apple.com
 DOMAIN-SUFFIX,apple-relay.cloudflare.com
-DOMAIN-SUFFIX,apple-relay
+DOMAIN-SUFFIX,apple-relay.fastly-edge.com
+DOMAIN,mask.apple-dns.net
+
+# 连通性测试 (可选)
+DOMAIN-SUFFIX,cp4.cloudflare.com
+
+# 注意：ls.apple.com (定位服务) 建议先不加，除非死活激活不了
