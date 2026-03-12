@@ -1,49 +1,41 @@
 /**
- * @name Loon Node Speed Test (Pro Max)
- * @description 强制指定节点大文件测速，带防卡死超时与精准推送通知
+ * @name 节点测速
+ * @description Loon 节点测速脚本 (纯本地运行版)
  */
 
 const title = '节点测速';
 const pingUrl = 'http://cp.cloudflare.com/generate_204';
-const downloadBytes = 20971520; // 20MB 测试文件
-const downloadUrl = `https://speed.cloudflare.com/__down?bytes=${downloadBytes}`;
-const timeoutSeconds = 10; // 下载测试的超时时间（秒）
+const downloadBytes = 10485760; // 10MB 测速文件
+const timeoutSeconds = 6; // 6秒必须出结果
 
-// 获取当前长按选中的节点名称
 let nodeName = "未知节点";
 if (typeof $environment !== 'undefined' && $environment.params) {
-    nodeName = $environment.params.node || $environment.params || "当前策略";
+    nodeName = typeof $environment.params === 'object' ? ($environment.params.node || "当前策略") : $environment.params;
 }
 
 async function testSpeed() {
     try {
-        // 1. 测试网络延迟 (Ping)，设 3 秒超时防卡死
+        // 1. 测延迟
         let pingStart = Date.now();
-        await httpGet(pingUrl, true, 3); 
+        await httpGet(pingUrl, true, 3);
         let ping = Date.now() - pingStart;
 
-        // 2. 测试下载速度 (20MB)，设 10 秒超时
+        // 2. 测速度
         let dlStart = Date.now();
-        await httpGet(downloadUrl, true, timeoutSeconds);
+        await httpGet(`https://speed.cloudflare.com/__down?bytes=${downloadBytes}`, true, timeoutSeconds);
         let dlEnd = Date.now();
 
-        // 计算速度
-        let timeInSeconds = (dlEnd - dlStart) / 1000;
+        // 3. 计算速度
+        let timeInSeconds = Math.max((dlEnd - dlStart) / 1000, 0.001); 
         let bytesPerSecond = downloadBytes / timeInSeconds;
         
-        // Mbps (宽带常用单位) & MB/s (实际下载速度)
         let mbps = ((bytesPerSecond * 8) / 1000000).toFixed(2); 
         let mb_s = (bytesPerSecond / 1048576).toFixed(2); 
 
-        let reportText = `延迟: ${ping} ms | 速度: ${mbps} Mbps (${mb_s} MB/s)`;
-
-        // 3. 发送系统精准推送通知
-        $notification.post(title + "完成", nodeName, reportText);
-
-        // 4. 构建 HTML 面板
+        // 4. 构建面板
         let htmlMessage = `
-        <p style="text-align: center; font-family: -apple-system; font-size: large; font-weight: thin">
-            <br><font color=#00b400>-------------------------<br>
+        <p style="text-align: center; font-family: -apple-system; font-size: large; font-weight: 300; padding-top: 15px;">
+            <br><font color="#00b400">-------------------------<br>
             <b>⟦ 测速结果 ⟧ </b><br>
             -------------------------</font><br><br>
             <b>节点名称</b><br>
@@ -51,57 +43,43 @@ async function testSpeed() {
             <b>网络延迟</b><br>
             <small>${ping} ms</small><br><br>
             <b>峰值速度</b><br>
-            <small><font color=#007aff>${mbps} Mbps</font> (${mb_s} MB/s)</small><br><br>
+            <small><font color="#007aff">${mbps} Mbps</font> (${mb_s} MB/s)</small><br><br>
             -----------------------------------<br>
-            <font color=#6959CD><small>Loon SpeedTest Pro Max</small></font>
+            <font color="#6959CD"><small>Loon SpeedTest</small></font>
         </p>
         `;
 
         $done({
             title: title,
-            content: `节点: ${nodeName}\n${reportText}`, 
+            content: `延迟: ${ping} ms | 速度: ${mbps} Mbps`, 
             htmlMessage: htmlMessage
         });
 
     } catch (error) {
         let errMsg = String(error.message || error);
-        let isTimeout = errMsg.toLowerCase().includes("timeout") || errMsg.includes("超时");
+        let failReason = errMsg.includes("timeout") ? `测速超时（节点过慢或失联）` : `测速失败: ${errMsg}`;
         
-        let failReason = isTimeout 
-            ? `测速超时 (${timeoutSeconds}秒内未完成下载)\n节点速度过慢或已断流。` 
-            : `测速失败: ${errMsg}`;
-        
-        // 失败也发个通知，省得干等
-        $notification.post("测速失败 ⚠️", nodeName, failReason);
-
         $done({
             title: "测速失败",
             content: failReason,
             htmlMessage: `
-            <p style="text-align: center; font-family: -apple-system;">
-                <br><font color=#f00>-------------------------<br>
+            <p style="text-align: center; font-family: -apple-system; padding-top: 15px;">
+                <br><font color="#f00">-------------------------<br>
                 <b>⟦ 测速失败 ⟧</b><br>
                 -------------------------</font><br><br>
                 <b>${nodeName}</b><br><br>
-                <small>${failReason.replace('\n', '<br>')}</small>
+                <small>${failReason}</small>
             </p>`
         });
     }
 }
 
-// 封装请求方法，增加 useNode 和 timeout 参数
 function httpGet(url, useNode = false, timeout = 5) {
     return new Promise((resolve, reject) => {
-        let options = { 
-            url: url,
-            timeout: timeout // Loon 原生支持 timeout 参数
-        };
-        
-        // 强制绑定长按的节点
+        let options = { url: url, timeout: timeout };
         if (useNode && nodeName !== "未知节点" && nodeName !== "当前策略") {
             options.node = nodeName; 
         }
-
         $httpClient.get(options, (error, response, data) => {
             if (error) {
                 reject(error);
