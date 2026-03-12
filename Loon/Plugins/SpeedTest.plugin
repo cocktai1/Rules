@@ -1,0 +1,8 @@
+#!name=节点测速面板
+#!desc=在节点列表长按节点，点击“节点测速”进行真实下载测速。
+#!author=你自己
+#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Speedtest.png
+
+[Script]
+# 注意：后面的 script-path 必须填入你的 .js 文件的 RAW 直链！
+generic = 节点测速, script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/SpeedTest.js, img-url=speedometer
