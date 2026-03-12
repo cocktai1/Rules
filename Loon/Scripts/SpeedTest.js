@@ -1,14 +1,14 @@
 /**
- * @name 节点测速 (多线程并发峰值版)
- * @description 模拟专业测速软件，4并发拉满带宽，测出真实极速
+ * @name 节点测速 (极限爆发测速版)
+ * @description 逼近 iOS 内存极限，瞬间吞吐 25MB 数据以测算高带宽节点的峰值
  */
 
 const title = '节点测速';
 const pingUrl = 'https://cp.cloudflare.com/generate_204'; 
 
-// 采用多线程策略：4条线程，每条拉取 3MB 数据，总计 12MB
-const threadCount = 4; 
-const bytesPerThread = 3145728; 
+// 极限并发策略：5条线程，每条拉取 5MB 数据，总计 25MB (逼近内存红线)
+const threadCount = 5; 
+const bytesPerThread = 5242880; 
 const totalBytes = threadCount * bytesPerThread; 
 
 let nodeName = "未知节点";
@@ -31,24 +31,21 @@ async function testSpeed() {
         pingResult = "Ping失败 (" + String(error.message || error) + ")";
     }
 
-    // 2. 多线程并发测速度
+    // 2. 极限多线程爆发测速度
     try {
         let dlStart = Date.now();
         
-        // 创建 4 个并发下载任务
         let tasks = [];
         for (let i = 0; i < threadCount; i++) {
-            // 给 URL 加个随机数防止缓存
             let url = `https://speed.cloudflare.com/__down?bytes=${bytesPerThread}&v=${Math.random()}`;
             tasks.push(httpGet(url, true));
         }
 
-        // 等待 4 个任务同时完成 (Promise.all)
         await Promise.all(tasks);
         
         let dlEnd = Date.now();
 
-        // 计算速度
+        // 核心计算：哪怕只用了 0.5 秒下完 25MB，也能算出极高的 MB/s
         let timeInSeconds = Math.max((dlEnd - dlStart) / 1000, 0.001); 
         let bytesPerSecond = totalBytes / timeInSeconds;
         
@@ -63,30 +60,30 @@ async function testSpeed() {
         let errMsg = String(finalError.message || finalError);
         $done({
             title: "测速失败",
-            content: "原错误信息: " + errMsg,
+            content: "测速过程意外中断",
             htmlMessage: `
             <p style="text-align: center; font-family: -apple-system; padding-top: 15px;">
                 <br><font color="#f00">-------------------------<br>
                 <b>⟦ 测速失败 ⟧</b><br>
                 -------------------------</font><br><br>
                 <b>${nodeName}</b><br><br>
-                <small><b>底层原声错误：</b><br>${errMsg}</small>
+                <small>如果看到此报错，可能是 25MB 瞬间吞吐触发了系统内存限制。<br>底层报错：${errMsg}</small>
             </p>`
         });
     } else {
         let htmlMessage = `
         <p style="text-align: center; font-family: -apple-system; font-size: large; font-weight: 300; padding-top: 15px;">
             <br><font color="#00b400">-------------------------<br>
-            <b>⟦ 并发测速结果 ⟧ </b><br>
+            <b>⟦ 爆发测速结果 ⟧ </b><br>
             -------------------------</font><br><br>
             <b>节点名称</b><br>
             <small><small>${nodeName}</small></small><br><br>
             <b>网络延迟</b><br>
             <small>${pingResult}</small><br><br>
-            <b>峰值速度 (4线程)</b><br>
+            <b>爆发极速 (25MB载荷)</b><br>
             <small><font color="#007aff">${speedMbps} Mbps</font> (${speedMBs} MB/s)</small><br><br>
             -----------------------------------<br>
-            <font color="#6959CD"><small>Loon SpeedTest Multi-Thread</small></font>
+            <font color="#6959CD"><small>Loon SpeedTest Burst</small></font>
         </p>
         `;
 
