@@ -1,9 +1,8 @@
 #!name=节点 IP 风险扫描仪
 #!desc=探测节点真实 IP，扫描归属地、服务商类型及欺诈风险程度。
 #!author=Lee
-#!icon=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Security.png
-
+#!icon=https://img.icons8.com/fluency/96/security-checked.png
 
 
 [Script]
-generic = IP风险扫描, script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/IPRiskProfiler.js, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Security.png
+generic = IP风险扫描, script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/IPRiskProfiler.js, img-url=https://img.icons8.com/fluency/96/security-checked.png
