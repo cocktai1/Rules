@@ -1,14 +1,13 @@
 /**
- * @name 节点测速
- * @description 5秒拉锯测速
+ * @name 节点测速 
+ * @description 引入原生 JS 超时引爆器，解决慢节点/丢包节点卡死等待几十秒的问题
  */
 
 const title = '节点测速';
 
-// 核心测速参数
-const testDurationMs = 5000; // 持续测速时长：5秒 (拉长一点，彻底稀释掉最初的握手时间)
-const chunkSize = 2097152; // 每个碎块 2MB (绝对不会爆内存)
-const concurrency = 4; // 并发 4 条线程火力全开
+const testDurationMs = 5000; // 持续测速时长：5秒
+const chunkSize = 2097152; // 每个碎块 2MB
+const concurrency = 4; // 并发 4 条线程
 
 let nodeName = "未知节点";
 if (typeof $environment !== 'undefined' && $environment.params) {
@@ -22,40 +21,34 @@ async function testSpeed() {
 
     let totalBytesDownloaded = 0;
     let dlStart = Date.now();
-    let dlEnd = dlStart;
     let failCount = 0; 
 
     try {
-        // 舍弃 Ping，直接进入 5 秒高压拉锯战
         while (Date.now() - dlStart < testDurationMs) {
             let tasks = [];
             for (let i = 0; i < concurrency; i++) {
-                // 加随机数防止 CDN 缓存
                 let url = `https://speed.cloudflare.com/__down?bytes=${chunkSize}&v=${Math.random()}`;
                 tasks.push(downloadChunk(url));
             }
             
+            // 如果遇到德国等丢包节点，原生 JS 超时器会强行在 4 秒内斩断卡死的 Promise
             let results = await Promise.all(tasks);
             let batchBytes = results.reduce((sum, bytes) => sum + bytes, 0);
             totalBytesDownloaded += batchBytes;
 
-            // 如果没拿到数据，记录失败；连续 2 次全失败提前终止
             if (batchBytes === 0) {
                 failCount++;
-                if (failCount >= 2) break;
+                if (failCount >= 2) break; // 连续 2 批完全没速度，认定断流，直接结算
             } else {
                 failCount = 0; 
             }
         }
 
-        dlEnd = Date.now();
-
-        // 计算峰值速度
+        let dlEnd = Date.now();
         let rawTimeMs = dlEnd - dlStart;
         
-        // 【核心补偿】：因为我们没有测 Ping，直接扣除 600ms 作为保守的 TLS 握手损耗
-        // 这样算出来的速度更贴近视频流媒体长连接下的真实网速
-        let pureTransferTimeMs = Math.max(rawTimeMs - 600, 100); 
+        // 补偿部分 TLS 握手时间 (由于没测 Ping，我们保守扣除 500ms)
+        let pureTransferTimeMs = Math.max(rawTimeMs - 500, 100); 
         
         let timeInSeconds = pureTransferTimeMs / 1000;
         let bytesPerSecond = totalBytesDownloaded / timeInSeconds;
@@ -67,7 +60,6 @@ async function testSpeed() {
         finalError = error;
     }
 
-    // 渲染极简面板
     if (finalError && totalBytesDownloaded === 0) {
         let errMsg = String(finalError.message || finalError);
         $done({
@@ -105,14 +97,31 @@ async function testSpeed() {
     }
 }
 
-// 纯粹的下载器，不带 timeout 参数防止断流 Bug
+// 带有“原生 JS 定时自毁机制”的下载器
 function downloadChunk(url) {
     return new Promise((resolve) => {
+        let isResolved = false;
+
+        // 手写一个 4 秒超时引爆器。一旦触发，直接宣告当前碎块下载失败（算作 0 速度）
+        let fallbackTimer = setTimeout(() => {
+            if (!isResolved) {
+                isResolved = true;
+                resolve(0); 
+            }
+        }, 4000); 
+
         let options = { url: url }; 
         if (nodeName !== "未知节点" && nodeName !== "当前策略") {
             options.node = nodeName; 
         }
+
         $httpClient.get(options, (error, response, data) => {
+            // 如果已经被超时器抢先结束了，后续的数据直接丢弃
+            if (isResolved) return; 
+            
+            isResolved = true;
+            clearTimeout(fallbackTimer); // 下载成功，拆除定时炸弹
+            
             if (error || !response || response.status !== 200) {
                 resolve(0); 
             } else {
