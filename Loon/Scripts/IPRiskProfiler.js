@@ -1,12 +1,11 @@
 /**
- * @name 节点 IP 风险扫描仪 (IP Risk Profiler)
+ * @name 节点 IP 风险扫描仪 (高容错防崩溃版)
  * @description 探测节点真实 IP，扫描其归属地、服务商类型及欺诈风险程度
  */
 
 const title = 'IP Risk Profiler';
 const apiUrl = 'https://ipwho.is/?lang=zh-CN';
 
-// 获取当前测试的节点名称
 let nodeName = "未知节点";
 if (typeof $environment !== 'undefined' && $environment.params) {
     nodeName = typeof $environment.params === 'object' ? ($environment.params.node || "当前策略") : $environment.params;
@@ -20,15 +19,17 @@ async function checkIPRisk() {
             throw new Error(result.message || "获取 IP 信息失败");
         }
 
-        // 解析基本信息
-        let ip = result.ip;
-        let location = `${result.country} - ${result.city}`;
-        let isp = result.connection.isp;
-        let asn = `AS${result.connection.asn} ${result.connection.org}`;
-        let ipType = result.connection.type; // e.g., isp, hosting, business
+        // 解析基本信息 (增加防御性防空值处理)
+        let ip = result.ip || "未知 IP";
+        let location = `${result.country || "未知国家"} - ${result.city || "未知城市"}`;
+        
+        let conn = result.connection || {};
+        let isp = conn.isp || "未知 ISP";
+        let asn = conn.asn ? `AS${conn.asn} ${conn.org || ""}` : "未知 ASN";
+        let ipType = conn.type || "未知类型";
 
-        // 解析安全/风险特征
-        let sec = result.security;
+        // 解析安全/风险特征 (关键修复：如果 security 为空，给一个空对象保底)
+        let sec = result.security || {}; 
         let riskScore = 0;
         let riskTags = [];
 
@@ -37,15 +38,18 @@ async function checkIPRisk() {
         if (sec.vpn) { riskScore += 30; riskTags.push("VPN池"); }
         if (sec.tor) { riskScore += 80; riskTags.push("暗网节点"); }
         if (sec.hosting) { riskScore += 30; riskTags.push("数据中心/机房"); }
+        
         if (ipType === "isp" || ipType === "cellular") { 
-            riskScore = Math.max(0, riskScore - 10); // 家庭宽带或手机基站，降低风险
+            riskScore = Math.max(0, riskScore - 10); 
             riskTags.push(ipType === "cellular" ? "原生蜂窝移动" : "原生家庭宽带");
+        } else if (ipType !== "未知类型") {
+            riskTags.push(`类型: ${ipType}`);
         }
 
-        if (riskTags.length === 0) riskTags.push("常规IP");
+        if (riskTags.length === 0) riskTags.push("常规IP (无明显特征)");
 
         // UI 颜色与评级
-        let levelColor = "#00b400"; // 默认绿色
+        let levelColor = "#00b400"; // 绿色
         let levelText = "🟢 极度纯净 (原生)";
         if (riskScore > 0 && riskScore <= 30) {
             levelColor = "#ff9800"; // 橙色
@@ -55,7 +59,6 @@ async function checkIPRisk() {
             levelText = "🔴 极高风险 (极易触发风控/验证码)";
         }
 
-        // 渲染高逼格面板
         let htmlMessage = `
         <p style="text-align: center; font-family: -apple-system; font-size: large; font-weight: 300; padding-top: 15px;">
             <br><font color="${levelColor}">-------------------------<br>
@@ -71,7 +74,7 @@ async function checkIPRisk() {
             <b>物理归属地</b><br>
             <small>${location}</small><br><br>
 
-            <b>ISP 与 运营商 (ASN)</b><br>
+            <b>ISP 与 运营商</b><br>
             <small>${isp}<br>${asn}</small><br><br>
 
             <font color="${levelColor}">-------------------------</font><br>
@@ -107,16 +110,14 @@ async function checkIPRisk() {
     }
 }
 
-// 封装原生 JS 超时器，防止节点死锁
 function fetchIPData(url, useNode = false) {
     return new Promise((resolve, reject) => {
         let isResolved = false;
 
-        // 5秒超时斩断
         let fallbackTimer = setTimeout(() => {
             if (!isResolved) {
                 isResolved = true;
-                reject(new Error("Request Timeout (节点无响应)"));
+                reject(new Error("Request Timeout (节点无响应或接口被墙)"));
             }
         }, 5000); 
 
@@ -139,7 +140,7 @@ function fetchIPData(url, useNode = false) {
                     let jsonData = JSON.parse(data);
                     resolve(jsonData);
                 } catch (e) {
-                    reject(new Error("API 响应解析失败 (可能被重定向或节点屏蔽了该接口)"));
+                    reject(new Error("API 解析失败 (可能触发了反爬验证)"));
                 }
             }
         });
