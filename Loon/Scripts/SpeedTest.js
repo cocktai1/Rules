@@ -1,10 +1,15 @@
 /**
- * @name 节点测速 (抗内存溢出 + 真实错误追踪版)
+ * @name 节点测速 (多线程并发峰值版)
+ * @description 模拟专业测速软件，4并发拉满带宽，测出真实极速
  */
 
 const title = '节点测速';
 const pingUrl = 'https://cp.cloudflare.com/generate_204'; 
-const downloadBytes = 2097152; // 降到 2MB，避开 iOS 的 15MB 内存红线
+
+// 采用多线程策略：4条线程，每条拉取 3MB 数据，总计 12MB
+const threadCount = 4; 
+const bytesPerThread = 3145728; 
+const totalBytes = threadCount * bytesPerThread; 
 
 let nodeName = "未知节点";
 if (typeof $environment !== 'undefined' && $environment.params) {
@@ -23,18 +28,29 @@ async function testSpeed() {
         await httpGet(pingUrl, true);
         pingResult = (Date.now() - pingStart) + " ms";
     } catch (error) {
-        // 如果 Ping 失败，保留真实错误但不中断后续下载测试
         pingResult = "Ping失败 (" + String(error.message || error) + ")";
     }
 
-    // 2. 核心测速度
+    // 2. 多线程并发测速度
     try {
         let dlStart = Date.now();
-        await httpGet(`https://speed.cloudflare.com/__down?bytes=${downloadBytes}`, true);
+        
+        // 创建 4 个并发下载任务
+        let tasks = [];
+        for (let i = 0; i < threadCount; i++) {
+            // 给 URL 加个随机数防止缓存
+            let url = `https://speed.cloudflare.com/__down?bytes=${bytesPerThread}&v=${Math.random()}`;
+            tasks.push(httpGet(url, true));
+        }
+
+        // 等待 4 个任务同时完成 (Promise.all)
+        await Promise.all(tasks);
+        
         let dlEnd = Date.now();
 
+        // 计算速度
         let timeInSeconds = Math.max((dlEnd - dlStart) / 1000, 0.001); 
-        let bytesPerSecond = downloadBytes / timeInSeconds;
+        let bytesPerSecond = totalBytes / timeInSeconds;
         
         speedMbps = ((bytesPerSecond * 8) / 1000000).toFixed(2); 
         speedMBs = (bytesPerSecond / 1048576).toFixed(2); 
@@ -44,9 +60,7 @@ async function testSpeed() {
 
     // 3. 渲染结果
     if (finalError && speedMbps === "0.00") {
-        // 把底层的最真实的报错直接吐出来，不再做修饰
         let errMsg = String(finalError.message || finalError);
-        
         $done({
             title: "测速失败",
             content: "原错误信息: " + errMsg,
@@ -63,16 +77,16 @@ async function testSpeed() {
         let htmlMessage = `
         <p style="text-align: center; font-family: -apple-system; font-size: large; font-weight: 300; padding-top: 15px;">
             <br><font color="#00b400">-------------------------<br>
-            <b>⟦ 测速结果 ⟧ </b><br>
+            <b>⟦ 并发测速结果 ⟧ </b><br>
             -------------------------</font><br><br>
             <b>节点名称</b><br>
             <small><small>${nodeName}</small></small><br><br>
             <b>网络延迟</b><br>
             <small>${pingResult}</small><br><br>
-            <b>峰值速度</b><br>
+            <b>峰值速度 (4线程)</b><br>
             <small><font color="#007aff">${speedMbps} Mbps</font> (${speedMBs} MB/s)</small><br><br>
             -----------------------------------<br>
-            <font color="#6959CD"><small>Loon SpeedTest</small></font>
+            <font color="#6959CD"><small>Loon SpeedTest Multi-Thread</small></font>
         </p>
         `;
 
@@ -86,7 +100,6 @@ async function testSpeed() {
 
 function httpGet(url, useNode = false) {
     return new Promise((resolve, reject) => {
-        // 去掉了 timeout 属性，防止 10 被解析为 10ms 导致秒杀
         let options = { url: url };
         if (useNode && nodeName !== "未知节点" && nodeName !== "当前策略") {
             options.node = nodeName; 
