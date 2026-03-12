@@ -1,0 +1,7 @@
+#!name=全平台解锁检测仪
+#!desc=一键并发检测节点对各大 AI 平台、流媒体及社交媒体的解锁状态。
+#!author=Gemini
+#!icon=https://img.icons8.com/fluency/96/radar.png
+
+[Script]
+generic = 全平台解锁检测, script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/UnlockChecker.js, img-url=https://img.icons8.com/fluency/96/radar.png
