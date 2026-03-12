@@ -1,6 +1,6 @@
 #!name=节点测速面板
 #!desc=在节点列表长按节点，点击“节点测速”进行真实下载测速。
-#!author=你自己
+#!author=Lee
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Speedtest.png
 
 [Script]
