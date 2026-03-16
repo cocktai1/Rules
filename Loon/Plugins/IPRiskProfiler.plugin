@@ -5,5 +5,5 @@
 
 
 [Script]
-generic = IP风险扫描, script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/IPRiskProfiler.js, icon=eye.circle
+generic = IP风险扫描, script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/IPRiskProfiler.js, icon=eye.circle.system
 
