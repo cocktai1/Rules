@@ -4,5 +4,4 @@
 #!icon=https://img.icons8.com/fluency/96/radar.png
 
 [Script]
-generic = 全平台解锁检测, script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/UnlockChecker.js, 
-img-url=magnifyingglass.circle
+generic = 全平台解锁检测, script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/UnlockChecker.js,img-url=magnifyingglass.circle
