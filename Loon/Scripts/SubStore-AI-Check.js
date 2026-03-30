@@ -1,30 +1,29 @@
 /**
- * AI 专用节点深度测活 (主动发包打标版)
- * 特性：包含 Cloudflare 盾精准识别修复。
- * 行为：只为成功解锁的节点添加 AI 前缀，失败的节点原样保留，绝不删除任何节点。
- * 环境：仅支持 Surge / Loon 运行环境。
+ * AI 节点标识标注
  */
 
+// 注意：这里必须是小写的 async
 async function operator(proxies = [], targetPlatform, context) {
   const $ = typeof $substore !== 'undefined' ? $substore : undefined;
   if (!$) throw new Error('当前环境不支持 $substore 对象');
   
   const { isLoon, isSurge } = $.env;
-  if (!isLoon && !isSurge) throw new Error('AI 主动检测仅支持 Loon 和 Surge (需 http-client-policy 能力)');
+  if (!isLoon && !isSurge) throw new Error('AI 主动检测仅支持 Loon 和 Surge');
 
-  // ========== 1. 配置区 ==========
+  // ========== 1. 参数配置区 (支持读取你在链接 # 后面加的参数) ==========
+  const args = typeof $arguments !== 'undefined' ? $arguments : {};
+  
   const PREFIX = "✨ AI | "; 
-  const TIMEOUT = 4000; // 超时时间：4秒
-  const CONCURRENCY = 8; // 并发数，不要太高
-  const URL = `https://ios.chat.openai.com`; // 风控最严接口
+  const TIMEOUT = parseFloat(args.timeout || 4000); // 优先读取后缀参数，没写就默认 4000
+  const CONCURRENCY = parseInt(args.concurrency || 8); // 优先读取后缀参数
+  const URL = decodeURIComponent(args.url || 'https://ios.chat.openai.com');
+  const METHOD = (args.method || 'get').toLowerCase();
   
   // 高危地区与安全协议配置
   const HIGH_RISK_REGIONS = /(港|HK|Hong|深|广|京|沪|中|China|CN|Macau|门|俄|Russia|RU|伊朗|Iran)/i;
   const INHERENT_TLS_TYPES = new Set(['trojan', 'hysteria', 'hysteria2', 'tuic']);
 
   const target = isLoon ? 'Loon' : isSurge ? 'Surge' : undefined;
-  
-  // 这里用来存放真正需要去发起 HTTP 测速的任务队列
   const tasks = [];
   
   // ========== 2. 静态预判与任务收集 ==========
@@ -45,7 +44,7 @@ async function operator(proxies = [], targetPlatform, context) {
       if (hasTLS || hasReality) isSecure = true;
     }
     
-    // 只有协议安全的节点，才配去敲 OpenAI 的大门
+    // 只有协议安全的节点，才配去测试
     if (isSecure) {
       tasks.push(() => checkNode(proxy));
     }
@@ -59,8 +58,8 @@ async function operator(proxies = [], targetPlatform, context) {
 
       const startedAt = Date.now();
       
-      // 发起请求
-      const res = await $.http.get({
+      // 发起请求 (动态使用 method 和 url)
+      const res = await $.http[METHOD]({
         url: URL,
         timeout: TIMEOUT,
         headers: {
@@ -77,70 +76,57 @@ async function operator(proxies = [], targetPlatform, context) {
       if (status === 403) {
         // 1. 如果返回体里包含明显的 HTML 标签或 CF 特征，说明被拦截，抛弃
         if (/<html/i.test(bodyStr) || /cloudflare|cf-ray/i.test(bodyStr)) {
-          throw new Error("被 Cloudflare 拦截");
+          return; // 被墙了，直接退出这个节点的测试，保留原样
         }
         
         // 2. 如果包含明确的地区不支持提示，说明 IP 被封锁，抛弃
         if (/unsupported_country/i.test(bodyStr)) {
-          throw new Error("地区不支持");
+          return; // 地区不支持，退出
         }
 
-        // 3. 排除以上情况后，才是真正能用来跑 AI 的节点
+        // 3. 排除以上情况后，进行打标
         const latency = Date.now() - startedAt;
         
         // 清理原名字中可能存在的过长垃圾信息，并加上前缀
         let cleanName = proxy.name.replace(/剩余|到期|流量|[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g, '').trim();
         proxy.name = `${PREFIX}${cleanName}`;
         proxy._ai_latency = latency;
-        proxy._gpt = true; // 保留原生字段兼容性
+        proxy._gpt = true; 
         
-        $.info(`[AI 解锁成功] ${proxy.name} | 延迟: ${latency}ms`);
-        
-      } else if (status !== 200) {
-        throw new Error(`异常状态码: ${status}`);
       }
     } catch (e) {
-      // 测速失败或超时，什么都不做，让原节点保持原样默默留在数组里
-      // 注释掉了 error 日志，避免满屏报错影响查看
-      // $.error(`[AI 检测未通过] ${proxy.name} - ${e.message ?? e}`);
+      // 报错或超时了 -> 默默 catch 掉，什么都不做，让原节点保持原样
     }
   }
 
   // 并发执行队列
   await executeAsyncTasks(tasks, { concurrency: CONCURRENCY });
 
-  // ★★★ 核心改变：直接返回包含所有节点（部分被打标、部分保持原样）的总数组 ★★★
+  // ★★★ 核心机制：强制返回最开始传入的全部节点，绝不漏掉一个 ★★★
   return proxies;
 
   // ========== 辅助并发控制函数 ==========
   function executeAsyncTasks(tasks, { concurrency = 1 } = {}) {
-    return new Promise(async (resolve, reject) => {
-      try {
-        let running = 0;
-        let index = 0;
+    return new Promise((resolve) => {
+      let running = 0;
+      let index = 0;
 
-        function executeNextTask() {
-          while (index < tasks.length && running < concurrency) {
-            const taskIndex = index++;
-            const currentTask = tasks[taskIndex];
-            running++;
-
-            currentTask()
-              .catch(() => {}) // 忽略单任务报错
-              .finally(() => {
-                running--;
-                executeNextTask();
-              });
-          }
-
-          if (running === 0 && index === tasks.length) {
-            resolve();
-          }
+      function executeNextTask() {
+        while (index < tasks.length && running < concurrency) {
+          const currentTask = tasks[index++];
+          running++;
+          currentTask()
+            .catch(() => {})
+            .finally(() => {
+              running--;
+              executeNextTask();
+            });
         }
-        executeNextTask();
-      } catch (e) {
-        reject(e);
+        if (running === 0 && index === tasks.length) {
+          resolve();
+        }
       }
+      executeNextTask();
     });
   }
 }
