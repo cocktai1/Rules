@@ -1,7 +1,8 @@
 /**
- * AI 专用节点深度测速筛选 (主动发包版)
- * 结合静态强规则与动态 HTTP 连通性测试。
- * 仅支持 Surge / Loon 运行环境。
+ * AI 专用节点深度测活 (主动发包打标版)
+ * 特性：包含 Cloudflare 盾精准识别修复。
+ * 行为：只为成功解锁的节点添加 AI 前缀，失败的节点原样保留，绝不删除任何节点。
+ * 环境：仅支持 Surge / Loon 运行环境。
  */
 
 async function operator(proxies = [], targetPlatform, context) {
@@ -13,23 +14,25 @@ async function operator(proxies = [], targetPlatform, context) {
 
   // ========== 1. 配置区 ==========
   const PREFIX = "✨ AI | "; 
-  const TIMEOUT = 4000; // 超时时间：4秒足以判断节点质量
-  const CONCURRENCY = 8; // 并发数：建议 8-10，太高容易被宿主 App 杀掉
-  const URL = `https://ios.chat.openai.com`; // 业界公认风控最严接口
+  const TIMEOUT = 4000; // 超时时间：4秒
+  const CONCURRENCY = 8; // 并发数，不要太高
+  const URL = `https://ios.chat.openai.com`; // 风控最严接口
   
   // 高危地区与安全协议配置
   const HIGH_RISK_REGIONS = /(港|HK|Hong|深|广|京|沪|中|China|CN|Macau|门|俄|Russia|RU|伊朗|Iran)/i;
   const INHERENT_TLS_TYPES = new Set(['trojan', 'hysteria', 'hysteria2', 'tuic']);
 
-  // ========== 2. 第一阶段：极速静态预过滤 ==========
-  // 目的：把明显不行（无 TLS、高危地区）的节点先剔除，不浪费 HTTP 请求资源
-  const candidates = [];
+  const target = isLoon ? 'Loon' : isSurge ? 'Surge' : undefined;
   
-  for (let p of proxies) {
-    let type = (p.type || '').toLowerCase();
-    let name = (p.name || '').trim();
+  // 这里用来存放真正需要去发起 HTTP 测速的任务队列
+  const tasks = [];
+  
+  // ========== 2. 静态预判与任务收集 ==========
+  for (let proxy of proxies) {
+    let type = (proxy.type || '').toLowerCase();
+    let name = (proxy.name || '').trim();
 
-    // 剔除高危地区
+    // 如果是高危地区，直接跳过测速（保留原样，不打 AI 标签）
     if (HIGH_RISK_REGIONS.test(name)) continue;
 
     // 强制 TLS 校验
@@ -37,21 +40,18 @@ async function operator(proxies = [], targetPlatform, context) {
     if (INHERENT_TLS_TYPES.has(type)) {
       isSecure = true;
     } else if (type === 'vless' || type === 'vmess') {
-      let hasTLS = p.tls === true || p.tls === 'true' || p.tls === 1;
-      let hasReality = !!(p['reality-opts'] || (p.flow && /reality/i.test(p.flow)));
+      let hasTLS = proxy.tls === true || proxy.tls === 'true' || proxy.tls === 1;
+      let hasReality = !!(proxy['reality-opts'] || (proxy.flow && /reality/i.test(proxy.flow)));
       if (hasTLS || hasReality) isSecure = true;
     }
     
-    // 只有安全的节点才进入候选名单
+    // 只有协议安全的节点，才配去敲 OpenAI 的大门
     if (isSecure) {
-      candidates.push(p);
+      tasks.push(() => checkNode(proxy));
     }
   }
 
-  // ========== 3. 第二阶段：HTTP 动态检测 ==========
-  const target = isLoon ? 'Loon' : isSurge ? 'Surge' : undefined;
-  const validAIProxies = []; // 最终输出的优选节点
-
+  // ========== 3. HTTP 动态检测核心 ==========
   async function checkNode(proxy) {
     try {
       const node = ProxyUtils.produce([proxy], target);
@@ -59,7 +59,7 @@ async function operator(proxies = [], targetPlatform, context) {
 
       const startedAt = Date.now();
       
-      // 发起带策略的 HTTP 请求
+      // 发起请求
       const res = await $.http.get({
         url: URL,
         timeout: TIMEOUT,
@@ -72,41 +72,45 @@ async function operator(proxies = [], targetPlatform, context) {
 
       const status = parseInt(res.status ?? res.statusCode ?? 200);
       let bodyStr = String(res.body ?? res.rawBody);
-      let msg = "";
-      
-      try {
-        let bodyJson = JSON.parse(bodyStr);
-        msg = bodyJson?.error?.code || bodyJson?.error?.error_type || bodyJson?.cf_details || "";
-      } catch (e) {}
 
-      // 核心判断逻辑：
-      // 如果是被 CF 拦截，通常是 400 或响应包含特定错误。
-      // 403 并且没有提示 unsupported_country，说明成功通过了最外层盾，走到未鉴权逻辑，证明 IP 干净。
-      if (status === 403 && !/unsupported_country/i.test(msg)) {
+      // 核心判断逻辑修复：严防 Cloudflare 假阳性
+      if (status === 403) {
+        // 1. 如果返回体里包含明显的 HTML 标签或 CF 特征，说明被拦截，抛弃
+        if (/<html/i.test(bodyStr) || /cloudflare|cf-ray/i.test(bodyStr)) {
+          throw new Error("被 Cloudflare 拦截");
+        }
+        
+        // 2. 如果包含明确的地区不支持提示，说明 IP 被封锁，抛弃
+        if (/unsupported_country/i.test(bodyStr)) {
+          throw new Error("地区不支持");
+        }
+
+        // 3. 排除以上情况后，才是真正能用来跑 AI 的节点
         const latency = Date.now() - startedAt;
         
         // 清理原名字中可能存在的过长垃圾信息，并加上前缀
         let cleanName = proxy.name.replace(/剩余|到期|流量|[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g, '').trim();
         proxy.name = `${PREFIX}${cleanName}`;
         proxy._ai_latency = latency;
+        proxy._gpt = true; // 保留原生字段兼容性
         
-        validAIProxies.push(proxy); // 测速成功，放入最终数组
         $.info(`[AI 解锁成功] ${proxy.name} | 延迟: ${latency}ms`);
+        
+      } else if (status !== 200) {
+        throw new Error(`异常状态码: ${status}`);
       }
     } catch (e) {
-      // 超时或连接失败，直接丢弃该节点
-      $.error(`[AI 检测失败] ${proxy.name} - ${e.message ?? e}`);
+      // 测速失败或超时，什么都不做，让原节点保持原样默默留在数组里
+      // 注释掉了 error 日志，避免满屏报错影响查看
+      // $.error(`[AI 检测未通过] ${proxy.name} - ${e.message ?? e}`);
     }
   }
 
   // 并发执行队列
-  await executeAsyncTasks(
-    candidates.map(proxy => () => checkNode(proxy)),
-    { concurrency: CONCURRENCY }
-  );
+  await executeAsyncTasks(tasks, { concurrency: CONCURRENCY });
 
-  // 只返回通过了双重校验（TLS + 连通性）的节点
-  return validAIProxies;
+  // ★★★ 核心改变：直接返回包含所有节点（部分被打标、部分保持原样）的总数组 ★★★
+  return proxies;
 
   // ========== 辅助并发控制函数 ==========
   function executeAsyncTasks(tasks, { concurrency = 1 } = {}) {
