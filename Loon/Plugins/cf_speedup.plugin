@@ -1,29 +1,13 @@
 #!name=CF 反代 IP 全自动优选
-#!desc=自动抓取优选库并并发测速，动态劫持 DNS 实现 Emby 等反代服务的物理直连加速。
-#!author=Lee
+#!desc=自动抓取优选库并并发测速，动态劫持 DNS 实现 Emby 等服务的物理直连加速。\n\n⚠️ 配置必读（支持多域名）：\n1. 支持填写多个域名，请务必使用【英文半角逗号 , 】分隔（例如：abc.com, xyz.net）。\n2. 填写根域名即可自动加速所有子域名。\n3. 仅填纯域名，绝对不要带 http:// 或端口号！\n\n🚨 提醒（必做）：\n由于本插件支持多域名，为避免语法冲突，已移除自带的分流规则。请务必前往 Loon 的「分流规则」中，手动将你填写的这些域名设置为 DIRECT（直连），否则流量会被代理节点接管，失去加速效果！
+#!author=@Lee
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png
 
-# ========================
-# ⚙️ Loon 原生图形化设置界面
-# ========================
 [Argument]
-# input: 文本输入框。这里的 emby.example.com 是默认占位符
-TARGET_DOMAIN = input, "emby.example.com", tag=🎯 需加速的反代域名, desc=填入你要加速的域名（填根域名可加速所有子域名）
-
-# (仅做展示) switch: Loon 的开关组件，返回 true/false
-# ENABLE_LOG = switch, false, tag=📝 开启详细日志, desc=是否在 Loon 日志中打印每次测速的延迟
-
-# (仅做展示) select: Loon 的下拉单选框组件
-# IP_MODE = select, "仅 IPv4", "仅 IPv6", "双栈", tag=🌐 IP 偏好, desc=选择测速的 IP 类型
-
-
-# ========================
-# 🚀 核心规则与脚本挂载
-# ========================
-[Rule]
-# 引用上面的 UI 变量，强制目标域名走本地直连，避开代理隧道
-DOMAIN-SUFFIX, {TARGET_DOMAIN}, DIRECT
+# 变量定义区，支持多域名逗号分隔
+TARGET_DOMAIN = input, "example.com", tag=🎯 需加速的反代域名, desc=多域名请用英文逗号分隔（如 a.com, b.com），勿加 http 及端口。
 
 [Script]
-# 引用上面的 UI 变量，将目标域名的 DNS 请求交给你的 GitHub 脚本处理
-dns domain-suffix="{TARGET_DOMAIN}" script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_reverse_proxy_opt.js, requires-body=false, tag=CF动态优选
+# 劫持目标域名的 DNS 请求，交由远端脚本处理并返回优选 IP
+# 注意：这里必须使用双引号 "{TARGET_DOMAIN}"，以支持 Loon 正确解析逗号分隔的多个域名
+dns domain-suffix="{TARGET_DOMAIN}" script-path=https://raw.githubusercontent.com/wwww/Rules/refs/heads/main/Loon/Scripts/cf_reverse_proxy_opt.js, requires-body=false, tag=CF自动优选
