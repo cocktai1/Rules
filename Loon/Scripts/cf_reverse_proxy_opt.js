@@ -143,10 +143,10 @@ async function main() {
         $persistentStore.write(JSON.stringify(failMap), FAIL_MAP_KEY);
 
         // 【通知增强】仅当选出的 IP 与上次不同，才发通知
-        if (oldBestIP && bestIP !== oldBestIP) {
-            $notification.post("✨ CF 优选节点已切换", `新节点: ${bestIP}`, `旧节点: ${oldBestIP} \n已为您自动调度至当前最快线路。`);
-        }
-    }
+        //if (oldBestIP && bestIP !== oldBestIP) {
+           // $notification.post("✨ CF 优选节点已切换", `新节点: ${bestIP}`, `旧节点: ${oldBestIP} \n已为您自动调度至当前最快线路。`);
+       // }
+    //}
 
     // ===== 3. DNS 返回 (双重兼容版) =====
     $done({
