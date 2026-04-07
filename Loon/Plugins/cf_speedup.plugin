@@ -1,6 +1,6 @@
 #!name=CF 反代 IP 全自动优选
 #!desc=自动抓取优选库并并发测速，动态劫持 DNS 实现 Emby 等反代服务的物理直连加速。
-#!author=Geek
+#!author=Lee
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png
 
 # ========================
