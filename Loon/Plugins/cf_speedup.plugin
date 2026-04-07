@@ -2,27 +2,28 @@
 #!desc=自动抓取优选库并并发测速，动态劫持 DNS 实现 Emby 等反代服务的物理直连加速。
 #!author=Geek
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png
-#!input=TARGET_DOMAIN, "emby.example.com", "填入需加速的主域名 (填根域名可加速所有子域名)"
 
+# ========================
+# ⚙️ Loon 原生图形化设置界面
+# ========================
+[Argument]
+# input: 文本输入框。这里的 emby.example.com 是默认占位符
+TARGET_DOMAIN = input, "emby.example.com", tag=🎯 需加速的反代域名, desc=填入你要加速的域名（填根域名可加速所有子域名）
+
+# (仅做展示) switch: Loon 的开关组件，返回 true/false
+# ENABLE_LOG = switch, false, tag=📝 开启详细日志, desc=是否在 Loon 日志中打印每次测速的延迟
+
+# (仅做展示) select: Loon 的下拉单选框组件
+# IP_MODE = select, "仅 IPv4", "仅 IPv6", "双栈", tag=🌐 IP 偏好, desc=选择测速的 IP 类型
+
+
+# ========================
+# 🚀 核心规则与脚本挂载
+# ========================
 [Rule]
-# === 主域名直连 (由界面 UI 变量控制) ===
+# 引用上面的 UI 变量，强制目标域名走本地直连，避开代理隧道
 DOMAIN-SUFFIX, {TARGET_DOMAIN}, DIRECT
 
-# =========================================================
-# 💡 【扩展多域名规则区】
-# 如果你有完全不同的域名需要加速，请删除下方规则的 # 号并修改
-# =========================================================
-# DOMAIN-SUFFIX, abc.com, DIRECT
-# DOMAIN-SUFFIX, xyz.net, DIRECT
-
-
 [Script]
-# === 主域名 DNS 劫持 (调用 GitHub 远程脚本) ===
-dns domain-suffix="{TARGET_DOMAIN}" script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_reverse_proxy_opt.js, requires-body=false, tag=CF主域名优选
-
-# =========================================================
-# 💡 【扩展多域名脚本区】
-# Loon 的 script 支持在引号内用半角逗号分隔多个域名
-# 如果你启用了上方的扩展规则，请同步取消下方注释并填入对应域名
-# =========================================================
-# dns domain-suffix="abc.com, xyz.net" script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_reverse_proxy_opt.js, requires-body=false, tag=CF扩展优选
+# 引用上面的 UI 变量，将目标域名的 DNS 请求交给你的 GitHub 脚本处理
+dns domain-suffix="{TARGET_DOMAIN}" script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_reverse_proxy_opt.js, requires-body=false, tag=CF动态优选
