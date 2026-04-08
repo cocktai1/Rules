@@ -9,6 +9,7 @@ const GIST_ID = (ARG.CF_GIST_ID || "").trim();
 const MIN_IMPROVEMENT = Number.parseInt((ARG.CF_MIN_IMPROVEMENT || "30").trim(), 10) || 30;
 const STICKY_MS = Number.parseInt((ARG.CF_STICKY_MS || "120").trim(), 10) || 120;
 const MIN_SWITCH_MINUTES = Number.parseInt((ARG.CF_MIN_SWITCH_MINUTES || "360").trim(), 10) || 360;
+const USE_IN_PROXY = ((ARG.CF_USE_IN_PROXY || "on") + "").trim().toLowerCase();
 const AUTO_REFRESH_SUB = ((ARG.CF_AUTO_REFRESH_SUB || "on") + "").trim().toLowerCase();
 
 if (
@@ -146,7 +147,9 @@ async function fetchDnsResolvedIPs(domain) {
 async function syncToGist(ip) {
     const apiBase = "https://api.github.com/gists";
     const headers = { "Authorization": `token ${GITHUB_TOKEN}`, "Accept": "application/vnd.github.v3+json", "User-Agent": "Loon" };
-    const hostContent = `# 更新时间: ${new Date().toLocaleString()}\n` + DOMAINS.map(d => `${d} = ${ip}`).join("\n");
+    const withProxy = USE_IN_PROXY === "on" || USE_IN_PROXY === "true" || USE_IN_PROXY === "1";
+    const hostLines = DOMAINS.map(d => withProxy ? `${d} = ${ip}, use-in-proxy=true` : `${d} = ${ip}`);
+    const hostContent = `[Host]\n# 更新时间: ${new Date().toLocaleString()}\n` + hostLines.join("\n");
     const payload = { files: { [GIST_FILENAME]: { content: hostContent } } };
 
     try {
