@@ -1,4 +1,4 @@
-// === 参数读取与安全检查 ===
+// === 参数读取并安全检查 ===
 const ARG = (typeof $argument === "object" && $argument !== null) ? $argument : {};
 const isPlaceholder = (value) => typeof value === "string" && /^\{.+\}$/.test(value.trim());
 
@@ -56,7 +56,7 @@ function ping(ip, host) {
         const start = Date.now();
         const url = host ? `http://${ip}/cdn-cgi/trace` : `https://${ip}/cdn-cgi/trace`;
         const headers = host ? { "Host": host, "User-Agent": "Mozilla/5.0" } : {};
-        $httpClient.get({ url, headers, timeout: 1500 }, (err, resp) => {
+        $httpClient.get({ url, headers, timeout: 1500, node: "DIRECT" }, (err, resp) => {
             if (!err && resp && resp.status === 200) resolve({ ip, delay: Date.now() - start });
             else resolve({ ip, delay: 9999 });
         });
@@ -87,7 +87,7 @@ async function burstPing(ip, host) {
 
 async function fetchDiverseIPs() {
     return new Promise(resolve => {
-        $httpClient.get(CUSTOM_URL || "https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt", (err, resp, data) => {
+        $httpClient.get({ url: CUSTOM_URL || "https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt", timeout: 5000, node: "DIRECT" }, (err, resp, data) => {
             if (err || !data) return resolve([]);
             const rawIps = data.split(/\r?\n/).map(l => l.split(/[,\s#]/)[0].trim()).filter(ip => /^(\d{1,3}\.){3}\d{1,3}$/.test(ip));
             const subnetMap = new Map();
@@ -122,7 +122,7 @@ async function fetchDnsResolvedIPs(domain) {
     for (const endpoint of endpoints) {
         // 任一 DoH 可用即可，不让单点失败影响整体。
         const ips = await new Promise((resolve) => {
-            $httpClient.get({ url: endpoint.url, headers: endpoint.headers, timeout: 2500 }, (err, resp, data) => {
+            $httpClient.get({ url: endpoint.url, headers: endpoint.headers, timeout: 2500, node: "DIRECT" }, (err, resp, data) => {
                 if (err || !resp || resp.status !== 200 || !data) {
                     resolve([]);
                     return;
