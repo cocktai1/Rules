@@ -1,19 +1,27 @@
-// === 智能参数读取：优先读取 BoxJs，其次读取 argument ===
+// === 终极智能参数读取 (防御 Loon 乱码 & BoxJs 穿透) ===
 const boxToken = $persistentStore.read("@CF_SpeedUp.token");
 const boxDomains = $persistentStore.read("@CF_SpeedUp.domains");
 const boxIpUrl = $persistentStore.read("@CF_SpeedUp.ip_url");
 
 const args = typeof $argument !== "undefined" ? $argument.split("===") : [];
 
-// 核心逻辑：如果 BoxJs 里填了，就用 BoxJs 的；否则用插件 UI 传过来的
-const GITHUB_TOKEN = boxToken || args[0] || "";
-const DOMAINS_RAW = boxDomains || args[1] || "";
-const CUSTOM_URL = boxIpUrl || args[2] || "https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt";
+// 核心防御逻辑：剔除 Loon 强塞的 {CF_XXX} 占位符
+function getRealVal(boxVal, argVal) {
+    if (boxVal && boxVal.trim() !== "") return boxVal.trim();
+    if (argVal && argVal.trim() !== "" && !argVal.includes("{CF_")) return argVal.trim();
+    return "";
+}
+
+const GITHUB_TOKEN = getRealVal(boxToken, args[0]);
+const DOMAINS_RAW = getRealVal(boxDomains, args[1]);
+let CUSTOM_URL = getRealVal(boxIpUrl, args[2]);
+if (!CUSTOM_URL) CUSTOM_URL = "https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt";
 
 const DOMAINS = DOMAINS_RAW.split(",").map(d => d.trim()).filter(Boolean);
 
-console.log(`[调试] 收到 Token 长度: ${GITHUB_TOKEN.length}`);
-console.log(`[调试] 当前读取到的域名: ${DOMAINS.join(", ") || "未填写"}`);
+console.log(`[参数检查] Token: ${GITHUB_TOKEN ? "已获取(隐藏)" : "❌ 为空"}`);
+console.log(`[参数检查] 域名: ${DOMAINS.join(", ") || "❌ 为空"}`);
+console.log(`[参数检查] IP源库: ${CUSTOM_URL}`);
 // ========================================================
 
 const GIST_FILENAME = "CF_Hosts.txt";
