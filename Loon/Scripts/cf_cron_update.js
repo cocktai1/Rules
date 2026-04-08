@@ -1,4 +1,4 @@
-// === 参数读取并安全检查 ===
+// === 参数读取与安全检查 ===
 const ARG = (typeof $argument === "object" && $argument !== null) ? $argument : {};
 const isPlaceholder = (value) => typeof value === "string" && /^\{.+\}$/.test(value.trim());
 
@@ -146,7 +146,7 @@ async function fetchDnsResolvedIPs(domain) {
 async function syncToGist(ip) {
     const apiBase = "https://api.github.com/gists";
     const headers = { "Authorization": `token ${GITHUB_TOKEN}`, "Accept": "application/vnd.github.v3+json", "User-Agent": "Loon" };
-    const hostContent = `[Host]\n# 更新时间: ${new Date().toLocaleString()}\n` + DOMAINS.map(d => `${d} = ${ip}`).join("\n");
+    const hostContent = `# 更新时间: ${new Date().toLocaleString()}\n` + DOMAINS.map(d => `${d} = ${ip}`).join("\n");
     const payload = { files: { [GIST_FILENAME]: { content: hostContent } } };
 
     try {
@@ -159,6 +159,32 @@ async function syncToGist(ip) {
                 resolve();
             });
         });
+
+        // 写后快速校验，避免接口成功但文件未按预期更新。
+        await new Promise((resolve, reject) => {
+            $httpClient.get({ url: `${apiBase}/${GIST_ID}`, headers, timeout: 4000, node: "DIRECT" }, (err, resp, data) => {
+                if (err || !resp || resp.status !== 200 || !data) {
+                    reject(new Error("verify-failed"));
+                    return;
+                }
+                try {
+                    const json = JSON.parse(data);
+                    const files = json.files || {};
+                    const current = files[GIST_FILENAME] && typeof files[GIST_FILENAME].content === "string"
+                        ? files[GIST_FILENAME].content
+                        : "";
+                    const mustContain = `${DOMAINS[0]} = ${ip}`;
+                    if (!current.includes(mustContain)) {
+                        reject(new Error("verify-mismatch"));
+                        return;
+                    }
+                    resolve();
+                } catch (e) {
+                    reject(new Error("verify-parse-error"));
+                }
+            });
+        });
+
         return true;
     } catch (e) {
         console.log(`❌ Gist 更新失败: ${e.message}`);
