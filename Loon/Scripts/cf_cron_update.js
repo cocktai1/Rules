@@ -10,6 +10,8 @@ const MIN_IMPROVEMENT = Number.parseInt((ARG.CF_MIN_IMPROVEMENT || "30").trim(),
 const STICKY_MS = Number.parseInt((ARG.CF_STICKY_MS || "120").trim(), 10) || 120;
 const MIN_SWITCH_MINUTES = Number.parseInt((ARG.CF_MIN_SWITCH_MINUTES || "360").trim(), 10) || 360;
 const USE_IN_PROXY = ((ARG.CF_USE_IN_PROXY || "on") + "").trim().toLowerCase();
+const OUTPUT_MODE = ((ARG.CF_OUTPUT_MODE || "plugin") + "").trim().toLowerCase();
+const GIST_FILENAME = (ARG.CF_GIST_FILE || "CF_HostMap.plugin").trim();
 const AUTO_REFRESH_SUB = ((ARG.CF_AUTO_REFRESH_SUB || "on") + "").trim().toLowerCase();
 
 if (
@@ -40,7 +42,6 @@ if (DOMAINS.length === 0) {
 console.log(`[运行信息] 目标域名: ${DOMAINS.join(", ")}`);
 
 // ========================================================
-const GIST_FILENAME = "CF_Hosts.txt";
 const MIN_SWITCH_INTERVAL_MS = MIN_SWITCH_MINUTES * 60 * 1000;
 
 // 防抖逻辑
@@ -149,7 +150,14 @@ async function syncToGist(ip) {
     const headers = { "Authorization": `token ${GITHUB_TOKEN}`, "Accept": "application/vnd.github.v3+json", "User-Agent": "Loon" };
     const withProxy = USE_IN_PROXY === "on" || USE_IN_PROXY === "true" || USE_IN_PROXY === "1";
     const hostLines = DOMAINS.map(d => withProxy ? `${d} = ${ip}, use-in-proxy=true` : `${d} = ${ip}`);
-    const hostContent = `[Host]\n# 更新时间: ${new Date().toLocaleString()}\n` + hostLines.join("\n");
+    const hostBody = `[Host]\n# 更新时间: ${new Date().toLocaleString()}\n` + hostLines.join("\n");
+    const pluginHeader = [
+        "#!name=CF HostMap Sync",
+        "#!desc=由 CF 优选脚本自动生成，请勿手动编辑。",
+        "#!author=@Lee",
+        "#!loon_version=3.2.1"
+    ].join("\n");
+    const hostContent = OUTPUT_MODE === "host" ? hostBody : `${pluginHeader}\n\n${hostBody}`;
     const payload = { files: { [GIST_FILENAME]: { content: hostContent } } };
 
     try {
@@ -283,7 +291,7 @@ async function main() {
                 $notification.post(
                     "CF 优选已更新",
                     "点击后刷新订阅以应用 Host 替换",
-                    `${mainDomain} -> ${best.ip} (${best.delay}ms), 原IP ${currentResult.delay}ms`,
+                    `${mainDomain} -> ${best.ip} (${best.delay}ms), 原IP ${currentResult.delay}ms, 模式 ${OUTPUT_MODE}`,
                     { openUrl: "loon://update?sub=all" }
                 );
             }
