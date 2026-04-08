@@ -1,30 +1,45 @@
-const url = $request.url;
+// 1. 基本安全环境检查
+if (typeof $request === "undefined" || typeof $argument === "undefined") {
+    $done();
+}
 
-// 官方纯正读取方式
-const DOMAINS_RAW = (typeof $argument !== "undefined" && $argument.CF_DOMAIN) ? $argument.CF_DOMAIN : "";
+const url = $request.url;
+const DOMAINS_RAW = $argument.CF_DOMAIN || "";
+
+// 2. 如果未配置域名，直接安全放行
+if (!DOMAINS_RAW) {
+    $done(); 
+}
+
 const domains = DOMAINS_RAW.split(",").map(d => d.trim()).filter(Boolean);
 
+// 3. 极速域名匹配逻辑
 let isTarget = false;
 for (let i = 0; i < domains.length; i++) {
-    if (url.indexOf(domains[i]) !== -1) {
+    if (url.includes(domains[i])) {
         isTarget = true;
         break;
     }
 }
 
-if (isTarget) {
-    const flagStr = $persistentStore.read("CF_NOTIFY_FLAG");
-    if (flagStr) {
-        try {
-            const data = JSON.parse(flagStr);
-            $notification.post(
-                "🚀 专属 CDN 线路已优化", 
-                `访问命中: ${data.domain}`, 
-                `✨ 相比上一节点延迟降低 ${data.diff}ms，提速约 ${data.percent}%。\n🛡️ 今日系统已为您自动进行 ${data.count} 次灾备调度。`
-            );
-            $persistentStore.write("", "CF_NOTIFY_FLAG");
-        } catch (e) {}
-    }
+// 4. 非目标域名（如 Sub-Store），直接放行请求，不作任何干预
+if (!isTarget) {
+    $done(); 
 }
 
-$done({});
+// 5. 命中目标域名，执行通知逻辑
+const flagStr = $persistentStore.read("CF_NOTIFY_FLAG");
+if (flagStr) {
+    try {
+        const data = JSON.parse(flagStr);
+        // 正常、专业的极客风通知
+        $notification.post(
+            "CF 节点调度完成", 
+            `命中域名: ${data.domain}`, 
+            `已切换至优选 IP: ${data.ip}\n当前延迟: ${data.delay}ms (降低 ${data.diff}ms)\n今日累计自动调度: ${data.count} 次`
+        );
+        $persistentStore.write("", "CF_NOTIFY_FLAG");
+    } catch (e) {}
+}
+
+$done();
