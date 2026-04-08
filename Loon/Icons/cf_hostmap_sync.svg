@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="CF HostMap Sync">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10162A"/>
+      <stop offset="100%" stop-color="#0E223D"/>
+    </linearGradient>
+    <linearGradient id="cf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF9A3D"/>
+      <stop offset="100%" stop-color="#F48120"/>
+    </linearGradient>
+    <linearGradient id="sync" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#77D9FF"/>
+      <stop offset="100%" stop-color="#37A6FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="24" y="24" width="464" height="464" rx="104" fill="url(#bg)"/>
+
+  <!-- Cloudflare-style cloud -->
+  <path d="M362 300c26 0 48-20 48-45s-20-45-46-45c-8-36-42-62-82-62-39 0-72 25-81 60-27 1-50 22-50 48 0 24 20 44 45 44z" fill="url(#cf)"/>
+  <path d="M160 306h210c18 0 32 13 32 29 0 15-14 28-31 28H159c-16 0-30-12-30-27 0-16 14-30 31-30z" fill="#FFB26A"/>
+
+  <!-- Map pin for host mapping -->
+  <path d="M256 166c-34 0-62 27-62 60 0 45 62 121 62 121s62-76 62-121c0-33-28-60-62-60z" fill="#F2F6FF" opacity="0.96"/>
+  <circle cx="256" cy="226" r="22" fill="#2C3E64"/>
+
+  <!-- Sync arrows -->
+  <path d="M152 404a108 108 0 0 1 176-76" fill="none" stroke="url(#sync)" stroke-width="20" stroke-linecap="round"/>
+  <path d="M334 306l20 42-45 7z" fill="url(#sync)"/>
+  <path d="M360 406a108 108 0 0 1-176 76" fill="none" stroke="url(#sync)" stroke-width="20" stroke-linecap="round"/>
+  <path d="M178 514l-20-42 45-7z" fill="url(#sync)" transform="translate(0 -64)"/>
+</svg>
