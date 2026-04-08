@@ -1,27 +1,37 @@
-// === 终极智能参数读取 (防御 Loon 乱码 & BoxJs 穿透) ===
-const boxToken = $persistentStore.read("@CF_SpeedUp.token");
-const boxDomains = $persistentStore.read("@CF_SpeedUp.domains");
-const boxIpUrl = $persistentStore.read("@CF_SpeedUp.ip_url");
+// === 终极智能参数读取 (原生 JSON 解析 + 完美防漏) ===
+let argObj = {};
+if (typeof $argument === "string") {
+    try { argObj = JSON.parse($argument); } catch(e) {}
+} else if (typeof $argument === "object") {
+    argObj = $argument;
+}
 
-const args = typeof $argument !== "undefined" ? $argument.split("===") : [];
-
-// 核心防御逻辑：剔除 Loon 强塞的 {CF_XXX} 占位符
-function getRealVal(boxVal, argVal) {
-    if (boxVal && boxVal.trim() !== "") return boxVal.trim();
-    if (argVal && argVal.trim() !== "" && !argVal.includes("{CF_")) return argVal.trim();
+// 核心防御：剔除 Loon 手动运行时的 {CF_XXX} 占位符 Bug
+function getRealVal(val) {
+    if (val && typeof val === "string" && val.trim() !== "" && !val.includes("{CF_")) {
+        return val.trim();
+    }
     return "";
 }
 
-const GITHUB_TOKEN = getRealVal(boxToken, args[0]);
-const DOMAINS_RAW = getRealVal(boxDomains, args[1]);
-let CUSTOM_URL = getRealVal(boxIpUrl, args[2]);
+const GITHUB_TOKEN = getRealVal(argObj.token);
+const DOMAINS_RAW = getRealVal(argObj.domain);
+let CUSTOM_URL = getRealVal(argObj.url);
 if (!CUSTOM_URL) CUSTOM_URL = "https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt";
+
+// 🛑 防呆拦截：精准识别 Loon 的手动运行 Bug
+if (!GITHUB_TOKEN || !DOMAINS_RAW) {
+    console.log("⚠️ 拦截提示：未获取到 Token 或 域名！");
+    console.log("❌ 如果你是点击了【▶️手动运行】按钮，这是 Loon 自身的底层传参 Bug 导致的。");
+    console.log("💡 正确测试方法：请去 Loon 插件 UI 填好参数，然后【开关一次手机 Wi-Fi】触发真实网络运行！");
+    $done();
+}
 
 const DOMAINS = DOMAINS_RAW.split(",").map(d => d.trim()).filter(Boolean);
 
-console.log(`[参数检查] Token: ${GITHUB_TOKEN ? "已获取(隐藏)" : "❌ 为空"}`);
-console.log(`[参数检查] 域名: ${DOMAINS.join(", ") || "❌ 为空"}`);
-console.log(`[参数检查] IP源库: ${CUSTOM_URL}`);
+console.log(`[参数检查] Token: 已获取(隐藏)`);
+console.log(`[参数检查] 域名: ${DOMAINS.join(", ")}`);
+console.log(`[参数检查] IP库: ${CUSTOM_URL}`);
 // ========================================================
 
 const GIST_FILENAME = "CF_Hosts.txt";
@@ -66,24 +76,21 @@ async function burstPing(ip, host) {
     return { ip, delay: avgDelay };
 }
 
-// 👑 跨网段抽取候选者 (Subnet Diversity)
+// 👑 跨网段抽取候选者
 async function fetchDiverseIPs() {
     return new Promise(resolve => {
         $httpClient.get(CUSTOM_URL, (err, resp, data) => {
             if (err || !data) {
-                console.log(`❌ IP 库拉取失败: ${CUSTOM_URL}`);
+                console.log(`❌ IP 库拉取失败`);
                 return resolve([]);
             }
-            
             const rawIps = data.split(/\r?\n/).map(l => l.split(/[,\s#]/)[0].trim()).filter(ip => /^(\d{1,3}\.){3}\d{1,3}$/.test(ip));
             const subnetMap = new Map();
-            
             rawIps.forEach(ip => {
                 const subnet = ip.split('.').slice(0, 2).join('.');
                 if (!subnetMap.has(subnet)) subnetMap.set(subnet, []);
                 subnetMap.get(subnet).push(ip);
             });
-
             let candidates = [];
             for (let [subnet, ips] of subnetMap.entries()) {
                 candidates.push(...ips.slice(0, 2));
@@ -106,7 +113,7 @@ async function syncToGist(ip) {
         let target = Array.isArray(gists) ? gists.find(g => g.files && g.files[GIST_FILENAME]) : null;
 
         if (!target) {
-            console.log("📝 未发现旧 Gist，准备创建新 Gist...");
+            console.log("📝 准备创建新 Gist...");
             const createRes = await new Promise(res => $httpClient.post({ url: apiBase, headers, body: JSON.stringify({...payload, description: "Loon 优选 CF 节点", public: false}) }, (e, r, d) => res(JSON.parse(d || "{}"))));
             if (createRes && createRes.files) {
                 $notification.post("🎉 调度中心创建成功！", "点击复制订阅链接", "去 Loon 的 Host 中添加该链接订阅", {"update-pasteboard": createRes.files[GIST_FILENAME].raw_url});
@@ -117,28 +124,19 @@ async function syncToGist(ip) {
         }
         return true;
     } catch (e) {
-        console.log("❌ Gist 同步抛出异常: " + e);
+        console.log("❌ Gist 同步异常");
         return false;
     }
 }
 
 // 主干逻辑
 async function main() {
-    if (!GITHUB_TOKEN || DOMAINS.length === 0) {
-        console.log("❌ 参数错误：未能从 BoxJs 或 插件参数 中读取到 Token 和 域名！");
-        return $done();
-    }
     const mainDomain = DOMAINS[0];
-
     const ips = await fetchDiverseIPs();
-    if (ips.length === 0) {
-        console.log("❌ 拉取候选 IP 失败，终止任务。");
-        return $done();
-    }
+    if (ips.length === 0) return $done();
 
     const currentIP = $persistentStore.read("CF_CURRENT_IP");
     
-    // 1. Burst 测试当前节点 (最高防丢包标准)
     let currentDelay = 9999;
     if (currentIP) {
         currentDelay = (await burstPing(currentIP, mainDomain)).delay;
@@ -148,24 +146,19 @@ async function main() {
         }
     }
 
-    // 2. 基准测试 (普通解析)
     const defaultDelay = (await ping(mainDomain)).delay;
-
-    // 3. 并发测试跨网段候选池
     const results = await Promise.all(ips.map(ip => ping(ip, mainDomain)));
     results.sort((a, b) => a.delay - b.delay);
     const best = results[0];
 
     console.log(`📊 战况 | 旧IP: ${currentDelay}ms | 直连(默认): ${defaultDelay}ms | 新黑马: ${best.delay}ms`);
 
-    // 决策逻辑
     if (best.delay < 9999 && best.delay < (currentDelay - MIN_IMPROVEMENT) && best.delay < defaultDelay) {
         console.log(`🚀 满足大幅换线条件，准备同步 ${best.ip} 到云端 Gist...`);
         const synced = await syncToGist(best.ip);
         if (synced) {
             $persistentStore.write(best.ip, "CF_CURRENT_IP");
             
-            // 记录调度统计次数
             let stats = JSON.parse($persistentStore.read("CF_STATS") || '{"date":"","count":0}');
             const today = new Date().toLocaleDateString();
             if (stats.date !== today) stats = { date: today, count: 0 };
@@ -182,7 +175,7 @@ async function main() {
             console.log("✅ 同步完毕，已埋下前台通知旗帜。");
         }
     } else {
-        console.log("⚖️ 新黑马不够快，维持现状。");
+        console.log("⚖️ 维持现状。");
     }
     
     $done();
