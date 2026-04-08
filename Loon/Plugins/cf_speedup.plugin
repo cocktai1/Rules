@@ -1,17 +1,19 @@
-#!name=CF 反代 IP 全自动优选 (多域名极客版)
-#!desc=采用后台测速 + DNS 秒回双层架构，实现 Emby 等服务的物理直连加速。\n\n⚠️ 极客配置提醒：\n1. 支持多域名，请严格使用【英文半角逗号 , 】分隔（例如 a.com, b.com）。\n2. 纯域名即可，切勿加 http 前缀。\n3. 🚨 必须手动前往 Loon 的「分流规则」中，将你填写的这些域名逐一添加并设置为 DIRECT（直连），否则失去加速效果！\n4. 安装后，请去「脚本任务」手动运行一次“CF后台测速”。
-#!author=@Lee
+#!name=CF 反代优选IP移速
+#!desc=全自动 Gist 同步 + 跨网段并发测速 + Burst发包防丢包 + 临场提速通知。\n\n⚠️ 配置指南：\n1. 填入 GitHub Token (需 Gist 权限)。\n2. 填入需加速的域名。\n3. 可选填自定义的 CF 节点池 URL（如 Sub-Store 链接）。\n4. 请去 Loon 的 [分流规则] 将域名设为 DIRECT！
+#!author=@CodeMaster
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png
 
 [Argument]
-# 变量定义，去掉了容易引起 Bug 的双引号默认值
-CF_DOMAIN = input, example.com, tag=🎯 需加速的反代域名, desc=多域名请用英文逗号分隔（如 a.com, b.com）
+CF_TOKEN = input, "", tag=🔑 GitHub Token, desc=填入 ghp_ 开头的 Token
+CF_DOMAIN = input, "emby.example.com", tag=🎯 加速域名, desc=多个域名请用英文半角逗号分隔
+CF_IP_URL = input, "", tag=🌐 自定义IP源库 (可选), desc=留空则使用默认高可用库
 
 [Script]
-# 后台测速任务
-cron "15,45 * * * *" script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_cron_update.js, tag=CF后台测速
+# 后台侦察兵：定时+网络切换双重触发
+cron "15 * * * *" script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_cron_update.js, tag=CF环境定时测速, argument="{CF_TOKEN}==={CF_DOMAIN}==={CF_IP_URL}"
+network-changed script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_cron_update.js, tag=CF网络重测, argument="{CF_TOKEN}==={CF_DOMAIN}==={CF_IP_URL}"
 
-# 前台 DNS 劫持
-# 🚨 核心：这里的 "{CF_DOMAIN}" 必须带双引号！
-# 这样当用户输入 a.com, b.com 时，才会替换成 domain-suffix="a.com, b.com" 的合法多域名语法
-dns domain-suffix="{CF_DOMAIN}" script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_dns_fast.js, requires-body=false, tag=CF极速DNS
+# 临场提速通知：采用更精简的 URL 匹配拦截
+http-request ^https?:\/\/.* script-path=
+https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_trigger.js
+, requires-body=false, tag=CF临场提速通知, argument="{CF_DOMAIN}"
