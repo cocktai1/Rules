@@ -1,6 +1,6 @@
 #!name=CF 反代优选调度中心
 #!desc=跨网段提取 + 延迟测速 + 动态路由。通过参数控制域名，全自动完成 IP 优选与 Host 重写。\n\n⚠️ 首次配置：\n1. 填入 GitHub Token 与目标 Gist ID。\n2. 将 Gist Raw 链接添加至 Loon [Host] 订阅。\n3. 在分流规则中将加速域名设为 DIRECT。
-#!author=@CodeMaster
+#!author=@Lee
 #!loon_version=3.2.1(733)
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png
 
