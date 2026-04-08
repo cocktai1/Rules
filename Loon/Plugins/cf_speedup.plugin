@@ -1,6 +1,6 @@
 #!name=CF 反代优选IP移速
 #!desc=全自动 Gist 同步 + 跨网段并发测速 + Burst发包防丢包 + 临场提速通知。\n\n⚠️ 配置指南：\n1. 填入 GitHub Token (需 Gist 权限)。\n2. 填入需加速的域名。\n3. 可选填自定义的 CF 节点池 URL（如 Sub-Store 链接）。\n4. 请去 Loon 的 [分流规则] 将域名设为 DIRECT！
-#!author=@CodeMaster
+#!author=@Lee
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png
 
 [Argument]
