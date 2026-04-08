@@ -1,0 +1,38 @@
+{
+  "id": "CF_SpeedUp",
+  "info": "CF 终极优选调度中心",
+  "name": "CF 优选中心",
+  "author": "@CodeMaster",
+  "icons": [
+    "https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png",
+    "https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png"
+  ],
+  "keys": [
+    "@CF_SpeedUp.token",
+    "@CF_SpeedUp.domains",
+    "@CF_SpeedUp.ip_url"
+  ],
+  "settings": [
+    {
+      "id": "@CF_SpeedUp.token",
+      "name": "GitHub Token",
+      "val": "",
+      "type": "text",
+      "desc": "必填：填入 ghp_ 开头的 Personal Access Token"
+    },
+    {
+      "id": "@CF_SpeedUp.domains",
+      "name": "加速域名",
+      "val": "",
+      "type": "text",
+      "desc": "必填：多个域名请用英文半角逗号分隔，如 emby.abc.com, nas.abc.com"
+    },
+    {
+      "id": "@CF_SpeedUp.ip_url",
+      "name": "自定义 IP 源库",
+      "val": "https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt",
+      "type": "text",
+      "desc": "可选：留空则使用默认高可用库，可填入 Sub-Store 链接"
+    }
+  ]
+}
