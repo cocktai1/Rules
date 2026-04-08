@@ -1,5 +1,8 @@
 const url = $request.url;
-const domains = (typeof $argument !== "undefined" ? $argument : "").split(",").map(d => d.trim());
+
+// 官方纯正读取方式
+const DOMAINS_RAW = (typeof $argument !== "undefined" && $argument.CF_DOMAIN) ? $argument.CF_DOMAIN : "";
+const domains = DOMAINS_RAW.split(",").map(d => d.trim()).filter(Boolean);
 
 let isTarget = false;
 for (let i = 0; i < domains.length; i++) {
