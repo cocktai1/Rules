@@ -6,20 +6,20 @@ const GITHUB_TOKEN = (ARG.CF_TOKEN || "").trim();
 const DOMAINS_RAW = (ARG.CF_DOMAIN || "").trim();
 const CUSTOM_URL = (ARG.CF_IP_URL || "https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt").trim();
 const GIST_ID = (ARG.CF_GIST_ID || "").trim();
-const MIN_IMPROVEMENT = Number.parseInt((ARG.CF_MIN_IMPROVEMENT || "120").trim(), 10) || 120;
-const STICKY_MS = Number.parseInt((ARG.CF_STICKY_MS || "180").trim(), 10) || 180;
-const MIN_SWITCH_MINUTES = Number.parseInt((ARG.CF_MIN_SWITCH_MINUTES || "720").trim(), 10) || 720;
-const CANDIDATE_LIMIT = Number.parseInt((ARG.CF_CANDIDATE_LIMIT || "20").trim(), 10) || 20;
-const EVAL_ROUNDS = Math.min(5, Math.max(1, Number.parseInt((ARG.CF_EVAL_ROUNDS || "3").trim(), 10) || 3));
-const PING_SAMPLES = Math.min(6, Math.max(2, Number.parseInt((ARG.CF_PING_SAMPLES || "4").trim(), 10) || 4));
+const MIN_IMPROVEMENT = Number.parseInt((ARG.CF_MIN_IMPROVEMENT || "100").trim(), 10) || 100;
+const STICKY_MS = Number.parseInt((ARG.CF_STICKY_MS || "220").trim(), 10) || 220;
+const MIN_SWITCH_MINUTES = Number.parseInt((ARG.CF_MIN_SWITCH_MINUTES || "480").trim(), 10) || 480;
+const CANDIDATE_LIMIT = Number.parseInt((ARG.CF_CANDIDATE_LIMIT || "40").trim(), 10) || 40;
+const EVAL_ROUNDS = Math.min(5, Math.max(1, Number.parseInt((ARG.CF_EVAL_ROUNDS || "4").trim(), 10) || 4));
+const PING_SAMPLES = Math.min(6, Math.max(2, Number.parseInt((ARG.CF_PING_SAMPLES || "5").trim(), 10) || 5));
 const JITTER_WEIGHT = Number.parseFloat((ARG.CF_JITTER_WEIGHT || "0.9").trim()) || 0.9;
 const REQUIRE_BEAT_DNS = ((ARG.CF_REQUIRE_BEAT_DNS || "on") + "").trim().toLowerCase();
-const DNS_MARGIN_MS = Number.parseInt((ARG.CF_DNS_MARGIN_MS || "120").trim(), 10) || 120;
-const MAX_ACCEPT_DELAY = Number.parseInt((ARG.CF_MAX_ACCEPT_DELAY || "450").trim(), 10) || 450;
+const DNS_MARGIN_MS = Number.parseInt((ARG.CF_DNS_MARGIN_MS || "80").trim(), 10) || 80;
+const MAX_ACCEPT_DELAY = Number.parseInt((ARG.CF_MAX_ACCEPT_DELAY || "650").trim(), 10) || 650;
 const PROBE_PATH = (ARG.CF_PROBE_PATH || "").trim();
-const PROBE_TIMEOUT = Number.parseInt((ARG.CF_PROBE_TIMEOUT || "4000").trim(), 10) || 4000;
-const MIN_PROBE_KBPS = Number.parseInt((ARG.CF_MIN_PROBE_KBPS || "300").trim(), 10) || 300;
-const BAD_RUN_PAUSE_MINUTES = Number.parseInt((ARG.CF_BAD_RUN_PAUSE_MINUTES || "30").trim(), 10) || 30;
+const PROBE_TIMEOUT = Number.parseInt((ARG.CF_PROBE_TIMEOUT || "6000").trim(), 10) || 6000;
+const MIN_PROBE_KBPS = Number.parseInt((ARG.CF_MIN_PROBE_KBPS || "250").trim(), 10) || 250;
+const BAD_RUN_PAUSE_MINUTES = Number.parseInt((ARG.CF_BAD_RUN_PAUSE_MINUTES || "20").trim(), 10) || 20;
 const USE_IN_PROXY = ((ARG.CF_USE_IN_PROXY || "on") + "").trim().toLowerCase();
 const OUTPUT_MODE = ((ARG.CF_OUTPUT_MODE || "plugin") + "").trim().toLowerCase();
 const GIST_FILENAME = (ARG.CF_GIST_FILE || "CF_HostMap.plugin").trim();
@@ -48,11 +48,19 @@ if (!GITHUB_TOKEN || !DOMAINS_RAW || !GIST_ID) {
     return;
 }
 
-const DOMAINS = DOMAINS_RAW.split(",").map(d => d.trim()).filter(Boolean);
+const DOMAINS_INPUT = DOMAINS_RAW
+    .split(/[\r\n,]+/)
+    .map(d => d.trim())
+    .filter(Boolean);
+const DOMAINS = Array.from(new Set(DOMAINS_INPUT)).slice(0, 6);
 if (DOMAINS.length === 0) {
     console.log("⚠️ 参数错误：CF_DOMAIN 至少需要一个域名。");
     $done();
     return;
+}
+
+if (DOMAINS_INPUT.length > DOMAINS.length) {
+    console.log(`ℹ️ 域名数量过多，已截取前 ${DOMAINS.length} 个参与评估。`);
 }
 
 console.log(`[运行信息] 目标域名: ${DOMAINS.join(", ")}`);
@@ -315,6 +323,67 @@ async function fetchDnsResolvedIPs(domain) {
     return uniqueIPv4List(results).slice(0, 6);
 }
 
+function average(values) {
+    if (!values.length) return 9999;
+    return Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+}
+
+function aggregateMultiDomainResults(domainReports, candidates) {
+    const merged = [];
+
+    for (const ip of candidates) {
+        let delaySum = 0;
+        let jitterSum = 0;
+        let successSum = 0;
+        let scoreSum = 0;
+        let count = 0;
+        let probeSum = 0;
+        let probeCount = 0;
+
+        for (const report of domainReports) {
+            const row = report.resultMap.get(ip) || {
+                ip,
+                delay: 9999,
+                jitter: 9999,
+                successRate: 0,
+                score: 9999,
+                probeKbps: null
+            };
+
+            delaySum += row.delay;
+            jitterSum += row.jitter;
+            successSum += row.successRate;
+            scoreSum += row.score;
+            count += 1;
+
+            if (row.probeKbps !== null && row.probeKbps > 0) {
+                probeSum += row.probeKbps;
+                probeCount += 1;
+            }
+        }
+
+        merged.push({
+            ip,
+            delay: Math.round(delaySum / count),
+            jitter: Math.round(jitterSum / count),
+            successRate: Number((successSum / count).toFixed(2)),
+            score: Math.round(scoreSum / count),
+            probeKbps: probeCount ? Math.round(probeSum / probeCount) : null
+        });
+    }
+
+    merged.sort((a, b) => a.score - b.score);
+
+    const dnsDelays = domainReports
+        .map(r => r.dnsBest.delay)
+        .filter(v => typeof v === "number" && v < 9999);
+
+    return {
+        results: merged,
+        dnsBaselineDelay: average(dnsDelays)
+    };
+}
+
 async function syncToGist(ip) {
     const apiBase = "https://api.github.com/gists";
     const headers = { "Authorization": `token ${GITHUB_TOKEN}`, "Accept": "application/vnd.github.v3+json", "User-Agent": "Loon" };
@@ -392,13 +461,21 @@ async function main() {
     }
 
     const mainDomain = DOMAINS[0];
+    const domainLabel = DOMAINS.length === 1 ? mainDomain : `${mainDomain} 等${DOMAINS.length}域`;
     const sourceIPs = await fetchDiverseIPs();
-    const dnsIPs = await fetchDnsResolvedIPs(mainDomain);
+    const dnsMap = new Map();
+    const allDnsIPs = [];
+
+    for (const domain of DOMAINS) {
+        const ips = await fetchDnsResolvedIPs(domain);
+        dnsMap.set(domain, ips);
+        allDnsIPs.push(...ips);
+    }
 
     const currentIP = $persistentStore.read("CF_CURRENT_IP");
     const candidates = uniqueIPv4List([
         ...(currentIP ? [currentIP] : []),
-        ...dnsIPs,
+        ...allDnsIPs,
         ...sourceIPs
     ]).slice(0, CANDIDATE_LIMIT);
 
@@ -408,18 +485,34 @@ async function main() {
         return;
     }
 
-    const results = await evaluateCandidates(candidates, mainDomain);
+    const domainReports = [];
+    for (const domain of DOMAINS) {
+        const rows = await evaluateCandidates(candidates, domain);
+        const resultMap = new Map(rows.map(r => [r.ip, r]));
+        const dnsIPs = dnsMap.get(domain) || [];
+        const dnsBest = rows
+            .filter(r => dnsIPs.includes(r.ip))
+            .sort((a, b) => a.score - b.score)[0] || { ip: "-", delay: 9999, jitter: 9999, successRate: 0, score: 9999, probeKbps: null };
+
+        domainReports.push({ domain, resultMap, dnsBest });
+    }
+
+    const merged = aggregateMultiDomainResults(domainReports, candidates);
+    const results = merged.results;
     const best = results[0];
 
     const currentResult = currentIP
         ? (results.find(r => r.ip === currentIP) || { ip: currentIP, delay: 9999, jitter: 9999, successRate: 0, score: 9999, probeKbps: null })
         : { ip: "", delay: 9999, jitter: 9999, successRate: 0, score: 9999, probeKbps: null };
-    const dnsBest = results.filter(r => dnsIPs.includes(r.ip)).sort((a, b) => a.score - b.score)[0] || { ip: "-", delay: 9999, jitter: 9999, successRate: 0, score: 9999, probeKbps: null };
+    const dnsBaseline = merged.dnsBaselineDelay;
 
     const bestProbe = best && best.probeKbps !== null ? `${best.probeKbps}KB/s` : "n/a";
-    const dnsProbe = dnsBest && dnsBest.probeKbps !== null ? `${dnsBest.probeKbps}KB/s` : "n/a";
+    const domainDnsText = domainReports
+        .map(r => `${r.domain}:${r.dnsBest.ip}/${r.dnsBest.delay}ms`)
+        .join(" | ");
 
-    console.log(`[候选] 缓存IP=${currentResult.ip || "无"}/${currentResult.delay}ms/j${currentResult.jitter}/s${currentResult.score} | DNS最佳=${dnsBest.ip}/${dnsBest.delay}ms/p${dnsProbe}/s${dnsBest.score} | 池最佳=${best.ip}/${best.delay}ms/p${bestProbe}/s${best.score}`);
+    console.log(`[候选] 缓存IP=${currentResult.ip || "无"}/${currentResult.delay}ms/j${currentResult.jitter}/s${currentResult.score} | DNS基线=${dnsBaseline}ms | 池最佳=${best.ip}/${best.delay}ms/p${bestProbe}/s${best.score}`);
+    console.log(`[DNS明细] ${domainDnsText}`);
 
     const now = Date.now();
     const lastSwitchAt = Number.parseInt($persistentStore.read("CF_LAST_SWITCH_AT") || "0", 10) || 0;
@@ -431,7 +524,7 @@ async function main() {
     const scoreBetterBy = currentResult.score - best.score;
     const healthyCandidate = best.delay < 9999;
     const requireBeatDns = REQUIRE_BEAT_DNS === "on" || REQUIRE_BEAT_DNS === "true" || REQUIRE_BEAT_DNS === "1";
-    const beatsDnsEnough = dnsBest.delay < 9999 ? (best.delay + DNS_MARGIN_MS < dnsBest.delay) : true;
+    const beatsDnsEnough = dnsBaseline < 9999 ? (best.delay + DNS_MARGIN_MS < dnsBaseline) : true;
     const probeEnabled = Boolean(normalizeProbePath(PROBE_PATH));
     const probeHealthy = !probeEnabled || (best.probeKbps !== null && best.probeKbps >= MIN_PROBE_KBPS);
 
@@ -480,7 +573,7 @@ async function main() {
             $persistentStore.write(String(now), "CF_LAST_SWITCH_AT");
             $persistentStore.write(String(now), "CF_LAST_GIST_SYNC_AT");
             $persistentStore.write(JSON.stringify({
-                domain: mainDomain,
+                domain: domainLabel,
                 ip: best.ip,
                 delay: best.delay,
                 oldDelay: currentResult.delay
@@ -497,7 +590,7 @@ async function main() {
             $persistentStore.write(JSON.stringify(stats), "CF_STATS");
 
             $persistentStore.write(JSON.stringify({
-                domain: mainDomain,
+                domain: domainLabel,
                 ip: best.ip,
                 delay: best.delay,
                 diff: currentResult.delay === 9999 ? "未知" : (currentResult.delay - best.delay),
@@ -505,12 +598,12 @@ async function main() {
             }), "CF_NOTIFY_FLAG");
 
             if (AUTO_REFRESH_SUB === "on" || AUTO_REFRESH_SUB === "true" || AUTO_REFRESH_SUB === "1") {
-                const fp = `${mainDomain}|${best.ip}|${OUTPUT_MODE}`;
+                const fp = `${domainLabel}|${best.ip}|${OUTPUT_MODE}`;
                 if (shouldSendNotification("MAIN", fp)) {
                     $notification.post(
                         "CF 优选已更新",
                         "点击后刷新订阅以应用 Host 替换",
-                        `${mainDomain} -> ${best.ip} (${best.delay}ms), 原IP ${currentResult.delay}ms, 模式 ${OUTPUT_MODE}`,
+                        `${domainLabel} -> ${best.ip} (${best.delay}ms), 原IP ${currentResult.delay}ms, 模式 ${OUTPUT_MODE}`,
                         { openUrl: "loon://update?sub=all" }
                     );
                 }
