@@ -1,19 +1,20 @@
 #!name=CF 反代优选ip加速
-#!desc=抛弃第三方UI，纯血 Loon 原生实现。跨网段提取 + 防丢包测速 + 智能粘性保护 + 临场提速通知。\n\n⚠️ 配置指南：\n1. 在下方填入 GitHub Token (需勾选 Gist 权限)。\n2. 填入需加速的纯域名。\n3. 请去 Loon 的 [分流规则] 将域名设为 DIRECT 直连！
-#!author=@CodeMaster
+#!desc=纯血 Loon 原生实现。跨网段提取 + 防丢包测速 + 智能粘性保护 + 临场提速通知。\n\n⚠️ 配置指南：\n1. 在下方填入 GitHub Token (需勾选 Gist 权限)。\n2. 填入需加速的纯域名。\n3. 请去 Loon 的 [分流规则] 将这些域名设为 DIRECT 直连！
+#!author=@Lee
+#!loon_version=3.2.1(733)
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png
 
 [Argument]
-CF_TOKEN = input, "", tag=🔑 GitHub Token, desc=填入 ghp_ 开头的 Token
-CF_DOMAIN = input, "emby.example.com", tag=🎯 加速域名, desc=多个域名请用英文半角逗号分隔
-CF_IP_URL = input, "", tag=🌐 自定义IP源 (可选), desc=留空则使用默认高可用库
+CF_TOKEN = input,"",tag=🔑 GitHub Token,desc=填入 ghp_ 开头的 Token
+CF_DOMAIN = input,"emby.example.com",tag=🎯 加速域名,desc=多个域名请用英文半角逗号分隔
+CF_IP_URL = input,"https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt",tag=🌐 自定义IP源(可选),desc=留空则使用默认高可用库
 
 [Script]
-# 后台侦察兵：使用标准 JSON 格式传递参数
-cron "15 * * * *" script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_cron_update.js, tag=CF环境定时测速, argument={"token":"{CF_TOKEN}", "domain":"{CF_DOMAIN}", "url":"{CF_IP_URL}"}
+# 后台侦察兵 (定时运行)：使用官方规范传递对象参数
+cron "15 * * * *" script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_cron_update.js, tag=CF环境定时测速, argument=[{CF_TOKEN},{CF_DOMAIN},{CF_IP_URL}]
 
-# 网络切换重测：使用标准 JSON 格式传递参数
-network-changed script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_cron_update.js, tag=CF网络重测, argument={"token":"{CF_TOKEN}", "domain":"{CF_DOMAIN}", "url":"{CF_IP_URL}"}
+# 网络切换重测：使用官方规范传递对象参数
+network-changed script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_cron_update.js, tag=CF网络重测, argument=[{CF_TOKEN},{CF_DOMAIN},{CF_IP_URL}]
 
-# 临场提速通知探针
-http-request ^https?:\/\/.* script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_trigger.js, requires-body=false, tag=CF临场提速通知, argument="{CF_DOMAIN}"
+# 临场提速通知：拦截请求并读取域名参数
+http-request ^https?:\/\/.* script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_trigger.js, requires-body=false, tag=CF临场提速通知, argument=[{CF_DOMAIN}]
