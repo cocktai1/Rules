@@ -1,5 +1,5 @@
 #!name=CF 反代优选调度中心
-#!desc=跨网段提取 + 延迟测速 + 动态路由。通过参数控制域名，全自动完成 IP 优选与 Host 重写。\n\n⚠️ 首次配置：\n1. 填入 GitHub Token 与目标 Gist ID。\n2. 将 Gist Raw 链接添加至 Loon [Host] 订阅。\n3. 在分流规则中将加速域名设为 DIRECT。
+#!desc=跨网段提取 + 延迟测速 + 动态路由。通过参数控制域名，完成 IP 优选并写入 Gist Host。\n\n⚠️ 首次配置：\n1. 填入 GitHub Token 与目标 Gist ID。\n2. 将 Gist Raw 链接添加至 Loon [Host] 订阅。\n3. 在分流规则中将加速域名设为 DIRECT。\n4. 收到"优选已更新"通知后点击，执行订阅刷新使替换立即生效。
 #!author=@Lee
 #!loon_version=3.2.1(733)
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png
@@ -9,10 +9,14 @@ CF_TOKEN = input,"",tag=GitHub Token,desc=必填：填入 ghp_ 开头的 Token
 CF_DOMAIN = input,"",tag=加速域名,desc=必填：多个域名请用英文半角逗号分隔
 CF_GIST_ID = input,"",tag=Gist ID,desc=必填：用于精准更新配置
 CF_IP_URL = input,"https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt",tag=IP 源库,desc=可选：留空则使用默认库
+CF_MIN_IMPROVEMENT = input,"30",tag=切换阈值(ms),desc=优选IP需至少快于当前IP的毫秒数
+CF_STICKY_MS = input,"120",tag=粘滞阈值(ms),desc=当前IP低于该延迟时保持不切换
+CF_MIN_SWITCH_MINUTES = input,"360",tag=最小切换间隔(分钟),desc=避免频繁切换，默认6小时
+CF_AUTO_REFRESH_SUB = input,"on",tag=更新后刷新提醒,desc=on/off：优选成功后推送一键刷新订阅通知
 
 [Script]
 # 定时测速
-cron "15 * * * *" script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_cron_update.js, tag=CF定时测速, argument=[{CF_TOKEN},{CF_DOMAIN},{CF_IP_URL},{CF_GIST_ID}]
+cron "15 * * * *" script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_cron_update.js, tag=CF定时测速, argument=[{CF_TOKEN},{CF_DOMAIN},{CF_IP_URL},{CF_GIST_ID},{CF_MIN_IMPROVEMENT},{CF_STICKY_MS},{CF_MIN_SWITCH_MINUTES},{CF_AUTO_REFRESH_SUB}]
 
 # 网络切换重测
-network-changed script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_cron_update.js, tag=CF网络重测, argument=[{CF_TOKEN},{CF_DOMAIN},{CF_IP_URL},{CF_GIST_ID}]
+network-changed script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_cron_update.js, tag=CF网络重测, argument=[{CF_TOKEN},{CF_DOMAIN},{CF_IP_URL},{CF_GIST_ID},{CF_MIN_IMPROVEMENT},{CF_STICKY_MS},{CF_MIN_SWITCH_MINUTES},{CF_AUTO_REFRESH_SUB}]
