@@ -6,23 +6,23 @@
 
 [Argument]
 CF_TOKEN = input,"",tag=GitHub Token,desc=必填：填入 ghp_ 开头的 Token
-CF_DOMAIN = input,"",tag=加速域名,desc=必填：多个域名请用英文半角逗号分隔
+CF_DOMAIN = input,"",tag=加速域名,desc=必填：支持英文逗号或换行分隔多个域名
 CF_GIST_ID = input,"",tag=Gist ID,desc=必填：用于精准更新配置
 CF_IP_URL = input,"https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt",tag=IP 源库,desc=可选：留空则使用默认库
-CF_MIN_IMPROVEMENT = input,"120",tag=切换阈值(ms),desc=优选IP需至少快于当前IP的毫秒数
-CF_STICKY_MS = input,"180",tag=粘滞阈值(ms),desc=当前IP低于该延迟时保持不切换
-CF_MIN_SWITCH_MINUTES = input,"720",tag=最小切换间隔(分钟),desc=避免频繁切换，默认12小时
-CF_CANDIDATE_LIMIT = input,"20",tag=候选IP上限,desc=每轮评估的候选IP数量
-CF_EVAL_ROUNDS = input,"3",tag=评估轮数,desc=单次任务内重复测速轮数，降低偶发波动
-CF_PING_SAMPLES = input,"4",tag=测速采样次数,desc=每个IP的采样次数，建议3-5
+CF_MIN_IMPROVEMENT = input,"100",tag=切换阈值(ms),desc=优选IP需至少快于当前IP的毫秒数
+CF_STICKY_MS = input,"220",tag=粘滞阈值(ms),desc=当前IP低于该延迟时保持不切换
+CF_MIN_SWITCH_MINUTES = input,"480",tag=最小切换间隔(分钟),desc=避免频繁切换，默认8小时
+CF_CANDIDATE_LIMIT = input,"40",tag=候选IP上限,desc=每轮评估的候选IP数量
+CF_EVAL_ROUNDS = input,"4",tag=评估轮数,desc=单次任务内重复测速轮数，降低偶发波动
+CF_PING_SAMPLES = input,"5",tag=测速采样次数,desc=每个IP的采样次数，建议4-6
 CF_JITTER_WEIGHT = input,"0.9",tag=抖动权重,desc=评分中抖动系数，值越高越重视稳定
 CF_REQUIRE_BEAT_DNS = input,"on",tag=需显著优于DNS,desc=on/off：仅当候选IP显著优于DNS结果时才固化映射
-CF_DNS_MARGIN_MS = input,"120",tag=优于DNS阈值(ms),desc=候选IP需至少快于DNS最佳该值才切换
-CF_MAX_ACCEPT_DELAY = input,"450",tag=最大可接受延迟(ms),desc=超过该延迟视为不适合固化映射
+CF_DNS_MARGIN_MS = input,"80",tag=优于DNS阈值(ms),desc=候选IP需至少快于DNS最佳该值才切换
+CF_MAX_ACCEPT_DELAY = input,"650",tag=最大可接受延迟(ms),desc=超过该延迟视为不适合固化映射
 CF_PROBE_PATH = input,"",tag=业务探针路径,desc=可选：如 /emby/items/...，用于更贴近真实业务测速
-CF_PROBE_TIMEOUT = input,"4000",tag=探针超时(ms),desc=业务探针请求超时
-CF_MIN_PROBE_KBPS = input,"300",tag=探针最低速率(KB/s),desc=启用探针时低于该速率不固化映射
-CF_BAD_RUN_PAUSE_MINUTES = input,"30",tag=劣化退避(分钟),desc=连续劣化时暂停切换，减少反复抖动
+CF_PROBE_TIMEOUT = input,"6000",tag=探针超时(ms),desc=业务探针请求超时
+CF_MIN_PROBE_KBPS = input,"250",tag=探针最低速率(KB/s),desc=启用探针时低于该速率不固化映射
+CF_BAD_RUN_PAUSE_MINUTES = input,"20",tag=劣化退避(分钟),desc=连续劣化时暂停切换，减少反复抖动
 CF_USE_IN_PROXY = input,"on",tag=代理中启用映射,desc=on/off：对应 use-in-proxy=true
 CF_OUTPUT_MODE = input,"plugin",tag=输出模式,desc=plugin/host：推荐plugin便于可视化排障
 CF_GIST_FILE = input,"CF_HostMap.plugin",tag=Gist文件名,desc=映射写入的文件名（同一gist内）
