@@ -1,18 +1,29 @@
-console.log(`[调试] 收到参数: ${typeof $argument !== "undefined" ? $argument : "未定义"}`);
+// === 智能参数读取：优先读取 BoxJs，其次读取 argument ===
+const boxToken = $persistentStore.read("@CF_SpeedUp.token");
+const boxDomains = $persistentStore.read("@CF_SpeedUp.domains");
+const boxIpUrl = $persistentStore.read("@CF_SpeedUp.ip_url");
 
 const args = typeof $argument !== "undefined" ? $argument.split("===") : [];
-const GITHUB_TOKEN = args[0] || "";
-const DOMAINS = (args[1] || "").split(",").map(d => d.trim()).filter(Boolean);
-const CUSTOM_URL = args[2] || "https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt";
+
+// 核心逻辑：如果 BoxJs 里填了，就用 BoxJs 的；否则用插件 UI 传过来的
+const GITHUB_TOKEN = boxToken || args[0] || "";
+const DOMAINS_RAW = boxDomains || args[1] || "";
+const CUSTOM_URL = boxIpUrl || args[2] || "https://cdn.jsdelivr.net/gh/ymyuuu/IPDB@main/bestcf.txt";
+
+const DOMAINS = DOMAINS_RAW.split(",").map(d => d.trim()).filter(Boolean);
+
+console.log(`[调试] 收到 Token 长度: ${GITHUB_TOKEN.length}`);
+console.log(`[调试] 当前读取到的域名: ${DOMAINS.join(", ") || "未填写"}`);
+// ========================================================
 
 const GIST_FILENAME = "CF_Hosts.txt";
-const STICKY_MS = 120; 
-const MIN_IMPROVEMENT = 30; 
+const STICKY_MS = 120; // 粘性保护阈值
+const MIN_IMPROVEMENT = 30; // 最小提升阈值
 
 // 防抖限制 (1分钟内不重复跑)
 const lastRun = parseInt($persistentStore.read("CF_LAST_RUN") || "0");
 if (Date.now() - lastRun < 60000) {
-    console.log("⏳ 防抖触发：距离上次运行不足1分钟，退出。");
+    console.log("⏳ 防抖触发：距离上次运行不足1分钟，静默退出。");
     $done();
 }
 $persistentStore.write(Date.now().toString(), "CF_LAST_RUN");
@@ -43,7 +54,6 @@ async function burstPing(ip, host) {
     
     if (valid.length < 2) return { ip, delay: 9999 };
     
-    // 🐞 之前报错的地方，已经完美修复：加上了 delay: 键名
     const avgDelay = Math.round(valid.reduce((sum, r) => sum + r.delay, 0) / valid.length);
     return { ip, delay: avgDelay };
 }
@@ -52,7 +62,10 @@ async function burstPing(ip, host) {
 async function fetchDiverseIPs() {
     return new Promise(resolve => {
         $httpClient.get(CUSTOM_URL, (err, resp, data) => {
-            if (err || !data) return resolve([]);
+            if (err || !data) {
+                console.log(`❌ IP 库拉取失败: ${CUSTOM_URL}`);
+                return resolve([]);
+            }
             
             const rawIps = data.split(/\r?\n/).map(l => l.split(/[,\s#]/)[0].trim()).filter(ip => /^(\d{1,3}\.){3}\d{1,3}$/.test(ip));
             const subnetMap = new Map();
@@ -88,7 +101,7 @@ async function syncToGist(ip) {
             console.log("📝 未发现旧 Gist，准备创建新 Gist...");
             const createRes = await new Promise(res => $httpClient.post({ url: apiBase, headers, body: JSON.stringify({...payload, description: "Loon 优选 CF 节点", public: false}) }, (e, r, d) => res(JSON.parse(d || "{}"))));
             if (createRes && createRes.files) {
-                $notification.post("🎉 调度中心创建成功！", "点击复制订阅链接", "去 Loon 的 Host 中添加订阅", {"update-pasteboard": createRes.files[GIST_FILENAME].raw_url});
+                $notification.post("🎉 调度中心创建成功！", "点击复制订阅链接", "去 Loon 的 Host 中添加该链接订阅", {"update-pasteboard": createRes.files[GIST_FILENAME].raw_url});
             }
         } else {
             console.log(`📝 发现现有 Gist，准备更新...`);
@@ -101,16 +114,17 @@ async function syncToGist(ip) {
     }
 }
 
+// 主干逻辑
 async function main() {
-    if (!GITHUB_TOKEN || !DOMAINS[0]) {
-        console.log("❌ 参数错误：Token 或 域名 变量为空！");
+    if (!GITHUB_TOKEN || DOMAINS.length === 0) {
+        console.log("❌ 参数错误：未能从 BoxJs 或 插件参数 中读取到 Token 和 域名！");
         return $done();
     }
     const mainDomain = DOMAINS[0];
 
     const ips = await fetchDiverseIPs();
     if (ips.length === 0) {
-        console.log("❌ 拉取 IP 池失败");
+        console.log("❌ 拉取候选 IP 失败，终止任务。");
         return $done();
     }
 
@@ -121,7 +135,7 @@ async function main() {
     if (currentIP) {
         currentDelay = (await burstPing(currentIP, mainDomain)).delay;
         if (currentDelay <= STICKY_MS) {
-            console.log(`🛡️ 粘性保护生效: 当前 ${currentIP} 延迟 ${currentDelay}ms，健康度优。`);
+            console.log(`🛡️ 粘性保护生效: 当前 ${currentIP} 延迟 ${currentDelay}ms，健康度优，停止调度。`);
             return $done();
         }
     }
@@ -134,22 +148,23 @@ async function main() {
     results.sort((a, b) => a.delay - b.delay);
     const best = results[0];
 
-    console.log(`📊 战况 | 旧: ${currentDelay}ms | 直连: ${defaultDelay}ms | 新: ${best.delay}ms`);
+    console.log(`📊 战况 | 旧IP: ${currentDelay}ms | 直连(默认): ${defaultDelay}ms | 新黑马: ${best.delay}ms`);
 
+    // 决策逻辑
     if (best.delay < 9999 && best.delay < (currentDelay - MIN_IMPROVEMENT) && best.delay < defaultDelay) {
-        console.log(`🚀 满足换线条件，准备同步 ${best.ip} 到 Gist...`);
+        console.log(`🚀 满足大幅换线条件，准备同步 ${best.ip} 到云端 Gist...`);
         const synced = await syncToGist(best.ip);
         if (synced) {
             $persistentStore.write(best.ip, "CF_CURRENT_IP");
             
-            // 记录调度次数
+            // 记录调度统计次数
             let stats = JSON.parse($persistentStore.read("CF_STATS") || '{"date":"","count":0}');
             const today = new Date().toLocaleDateString();
             if (stats.date !== today) stats = { date: today, count: 0 };
             stats.count += 1;
             $persistentStore.write(JSON.stringify(stats), "CF_STATS");
 
-            // 埋下通知旗帜
+            // 埋下临场通知旗帜
             $persistentStore.write(JSON.stringify({
                 domain: mainDomain,
                 diff: currentDelay === 9999 ? "未知" : (currentDelay - best.delay),
@@ -161,6 +176,7 @@ async function main() {
     } else {
         console.log("⚖️ 新黑马不够快，维持现状。");
     }
+    
     $done();
 }
 
