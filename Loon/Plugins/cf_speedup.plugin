@@ -1,5 +1,5 @@
 #!name=CF 反代优选调度中心
-#!desc=跨网段提取 + 延迟测速 + 动态路由。通过参数控制域名，完成 IP 优选并写入 Gist 映射。\n\n⚠️ 首次配置：\n1. 填入 GitHub Token 与目标 Gist ID。\n2. CF_OUTPUT_MODE=plugin 时请将 Raw 添加为“插件订阅”；CF_OUTPUT_MODE=host 时添加为“Host 订阅”。\n3. 在分流规则中将加速域名设为 DIRECT。\n4. 受 Loon API 限制，订阅刷新无法在脚本内无交互强制执行，仍建议保留后置提醒。\n5. 自动生成的 CF HostMap Sync 将附带图标与后置定时提醒脚本。
+#!desc=跨网段提取 + 延迟测速 + 动态路由。通过参数控制域名，完成 IP 优选并写入 Gist 映射。\n\n⚠️ 首次配置：\n1. 填入 GitHub Token 与目标 Gist ID。\n2. CF_OUTPUT_MODE=plugin 时请将 Raw 添加为“插件订阅”；CF_OUTPUT_MODE=host 时添加为“Host 订阅”。\n3. 在分流规则中将加速域名设为 DIRECT。\n4. 受 Loon API 限制，订阅刷新无法在脚本内无交互强制执行，仍建议保留后置提醒。\n5. 自动生成的 CF HostMap Sync 将附带图标与后置定时提醒脚本。\n6. 非隐私参数留空时，脚本会自动回退到默认值。
 #!author=@Lee
 #!loon_version=3.2.1(733)
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png
@@ -26,7 +26,7 @@ CF_BAD_RUN_PAUSE_MINUTES = input,"20",tag=劣化退避(分钟),desc=连续劣化
 CF_USE_IN_PROXY = input,"on",tag=代理中启用映射,desc=on/off：对应 use-in-proxy=true
 CF_OUTPUT_MODE = input,"plugin",tag=输出模式,desc=plugin/host：推荐plugin便于可视化排障
 CF_GIST_FILE = input,"CF_HostMap.plugin",tag=Gist文件名,desc=映射写入的文件名（同一gist内）
-CF_GENERATED_ICON = input,"https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Icons/cf_hostmap_sync.svg",tag=生成插件图标,desc=CF HostMap Sync 的图标地址
+CF_GENERATED_ICON = input,"https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png",tag=生成插件图标,desc=CF HostMap Sync 的图标地址（建议使用 PNG）
 CF_POST_SYNC_SCRIPT_URL = input,"https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_post_sync_refresh.js",tag=后置脚本地址,desc=生成插件内后置提醒脚本链接
 CF_GENERATED_CRON = input,"17 * * * *",tag=生成插件定时,desc=CF HostMap Sync 内置后置提醒 cron
 CF_LOW_NOISE_MODE = input,"on",tag=低打扰模式,desc=on/off：通知去重与冷却，减少重复提醒
