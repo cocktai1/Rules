@@ -22,6 +22,11 @@ const BAD_RUN_PAUSE_MINUTES = Number.parseInt((ARG.CF_BAD_RUN_PAUSE_MINUTES || "
 const USE_IN_PROXY = ((ARG.CF_USE_IN_PROXY || "on") + "").trim().toLowerCase();
 const OUTPUT_MODE = ((ARG.CF_OUTPUT_MODE || "plugin") + "").trim().toLowerCase();
 const GIST_FILENAME = (ARG.CF_GIST_FILE || "CF_HostMap.plugin").trim();
+const GENERATED_ICON = (ARG.CF_GENERATED_ICON || "https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png").trim();
+const POST_SYNC_SCRIPT_URL = (ARG.CF_POST_SYNC_SCRIPT_URL || "https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_post_sync_refresh.js").trim();
+const GENERATED_CRON = (ARG.CF_GENERATED_CRON || "17 * * * *").trim();
+const LOW_NOISE_MODE = ((ARG.CF_LOW_NOISE_MODE || "on") + "").trim().toLowerCase();
+const NOTIFY_COOLDOWN_MINUTES = Number.parseInt((ARG.CF_NOTIFY_COOLDOWN_MINUTES || "180").trim(), 10) || 180;
 const AUTO_REFRESH_SUB = ((ARG.CF_AUTO_REFRESH_SUB || "on") + "").trim().toLowerCase();
 
 if (
@@ -54,6 +59,24 @@ console.log(`[运行信息] 目标域名: ${DOMAINS.join(", ")}`);
 // ========================================================
 const MIN_SWITCH_INTERVAL_MS = MIN_SWITCH_MINUTES * 60 * 1000;
 const BAD_RUN_PAUSE_MS = BAD_RUN_PAUSE_MINUTES * 60 * 1000;
+const NOTIFY_COOLDOWN_MS = NOTIFY_COOLDOWN_MINUTES * 60 * 1000;
+
+function shouldSendNotification(channel, fingerprint) {
+    const lowNoise = LOW_NOISE_MODE === "on" || LOW_NOISE_MODE === "true" || LOW_NOISE_MODE === "1";
+    const tsKey = `CF_NOTIFY_LAST_TS_${channel}`;
+    const fpKey = `CF_NOTIFY_LAST_FP_${channel}`;
+    const now = Date.now();
+    const lastTs = Number.parseInt($persistentStore.read(tsKey) || "0", 10) || 0;
+    const lastFp = $persistentStore.read(fpKey) || "";
+
+    if (lowNoise && lastFp === fingerprint && now - lastTs < NOTIFY_COOLDOWN_MS) {
+        return false;
+    }
+
+    $persistentStore.write(String(now), tsKey);
+    $persistentStore.write(fingerprint, fpKey);
+    return true;
+}
 
 // 防抖逻辑
 const lastRun = parseInt($persistentStore.read("CF_LAST_RUN") || "0");
@@ -257,9 +280,17 @@ async function syncToGist(ip) {
         "#!desc=由 CF 优选脚本自动生成，请勿手动编辑。",
         "#!author=@Lee",
         "#!loon_version=3.2.1",
-        "#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png"
+        `#!icon=${GENERATED_ICON}`
     ].join("\n");
-    const hostContent = OUTPUT_MODE === "host" ? hostBody : `${pluginHeader}\n\n${hostBody}`;
+
+    const generatedScriptBlock = [
+        "[Script]",
+        `cron \"${GENERATED_CRON}\" script-path=${POST_SYNC_SCRIPT_URL}, tag=CFHostMap后置提醒, argument=[CF_AUTO_REFRESH_SUB=${AUTO_REFRESH_SUB},CF_LOW_NOISE_MODE=${LOW_NOISE_MODE},CF_NOTIFY_COOLDOWN_MINUTES=${NOTIFY_COOLDOWN_MINUTES}]`
+    ].join("\n");
+
+    const hostContent = OUTPUT_MODE === "host"
+        ? hostBody
+        : `${pluginHeader}\n\n${hostBody}\n\n${generatedScriptBlock}`;
     const payload = { files: { [GIST_FILENAME]: { content: hostContent } } };
 
     try {
@@ -428,12 +459,15 @@ async function main() {
             }), "CF_NOTIFY_FLAG");
 
             if (AUTO_REFRESH_SUB === "on" || AUTO_REFRESH_SUB === "true" || AUTO_REFRESH_SUB === "1") {
-                $notification.post(
-                    "CF 优选已更新",
-                    "点击后刷新订阅以应用 Host 替换",
-                    `${mainDomain} -> ${best.ip} (${best.delay}ms), 原IP ${currentResult.delay}ms, 模式 ${OUTPUT_MODE}`,
-                    { openUrl: "loon://update?sub=all" }
-                );
+                const fp = `${mainDomain}|${best.ip}|${OUTPUT_MODE}`;
+                if (shouldSendNotification("MAIN", fp)) {
+                    $notification.post(
+                        "CF 优选已更新",
+                        "点击后刷新订阅以应用 Host 替换",
+                        `${mainDomain} -> ${best.ip} (${best.delay}ms), 原IP ${currentResult.delay}ms, 模式 ${OUTPUT_MODE}`,
+                        { openUrl: "loon://update?sub=all" }
+                    );
+                }
             }
 
             console.log(`✅ 调度完成: ${reason}`);
