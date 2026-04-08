@@ -26,7 +26,7 @@ CF_BAD_RUN_PAUSE_MINUTES = input,"20",tag=劣化退避(分钟),desc=连续劣化
 CF_USE_IN_PROXY = input,"on",tag=代理中启用映射,desc=on/off：对应 use-in-proxy=true
 CF_OUTPUT_MODE = input,"plugin",tag=输出模式,desc=plugin/host：推荐plugin便于可视化排障
 CF_GIST_FILE = input,"CF_HostMap.plugin",tag=Gist文件名,desc=映射写入的文件名（同一gist内）
-CF_GENERATED_ICON = input,"https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png",tag=生成插件图标,desc=CF HostMap Sync 的图标地址（建议使用 PNG）
+CF_GENERATED_ICON = input,"https://img.icons8.com/fluency/96/refresh.png",tag=生成插件图标,desc=CF HostMap Sync 的图标地址（建议使用 PNG，默认与主插件图标区分）
 CF_POST_SYNC_SCRIPT_URL = input,"https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_post_sync_refresh.js",tag=后置脚本地址,desc=生成插件内后置提醒脚本链接
 CF_GENERATED_CRON = input,"17 * * * *",tag=生成插件定时,desc=CF HostMap Sync 内置后置提醒 cron
 CF_LOW_NOISE_MODE = input,"on",tag=低打扰模式,desc=on/off：通知去重与冷却，减少重复提醒
