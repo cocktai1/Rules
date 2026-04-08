@@ -16,7 +16,3 @@ cron "15 * * * *" script-path=https://raw.githubusercontent.com/cocktai1/Rules/r
 
 # 网络切换重测
 network-changed script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_cron_update.js, tag=CF网络重测, argument=[{CF_TOKEN},{CF_DOMAIN},{CF_IP_URL},{CF_GIST_ID}]
-
-# 提速通知（正则宽泛匹配，脚本内部精准过滤）
-http-request ^https?:\/\/.* script-path=https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_trigger.js, requires-body=false, tag=CF提速通知, argument=[{CF_DOMAIN}]
-
