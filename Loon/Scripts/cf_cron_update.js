@@ -10,6 +10,7 @@ const MIN_IMPROVEMENT = Number.parseInt((ARG.CF_MIN_IMPROVEMENT || "120").trim()
 const STICKY_MS = Number.parseInt((ARG.CF_STICKY_MS || "180").trim(), 10) || 180;
 const MIN_SWITCH_MINUTES = Number.parseInt((ARG.CF_MIN_SWITCH_MINUTES || "720").trim(), 10) || 720;
 const CANDIDATE_LIMIT = Number.parseInt((ARG.CF_CANDIDATE_LIMIT || "20").trim(), 10) || 20;
+const EVAL_ROUNDS = Math.min(5, Math.max(1, Number.parseInt((ARG.CF_EVAL_ROUNDS || "3").trim(), 10) || 3));
 const PING_SAMPLES = Math.min(6, Math.max(2, Number.parseInt((ARG.CF_PING_SAMPLES || "4").trim(), 10) || 4));
 const JITTER_WEIGHT = Number.parseFloat((ARG.CF_JITTER_WEIGHT || "0.9").trim()) || 0.9;
 const REQUIRE_BEAT_DNS = ((ARG.CF_REQUIRE_BEAT_DNS || "on") + "").trim().toLowerCase();
@@ -155,8 +156,16 @@ function normalizeProbePath(value) {
     return value.startsWith("/") ? value : `/${value}`;
 }
 
-async function runProbe(ip, host) {
-    const path = normalizeProbePath(PROBE_PATH);
+function normalizeProbePathList(value) {
+    if (!value) return [];
+    return value
+        .split(",")
+        .map(v => normalizeProbePath(v.trim()))
+        .filter(Boolean)
+        .slice(0, 4);
+}
+
+async function runSingleProbe(ip, host, path) {
     if (!path) return null;
 
     const started = Date.now();
@@ -185,8 +194,45 @@ async function runProbe(ip, host) {
     });
 }
 
+async function runProbe(ip, host) {
+    const paths = normalizeProbePathList(PROBE_PATH);
+    if (!paths.length) return null;
+
+    const all = [];
+    for (const p of paths) {
+        const r = await runSingleProbe(ip, host, p);
+        if (r) all.push(r);
+    }
+    const ok = all.filter(r => r.ok && r.kbps > 0);
+    if (!ok.length) return { kbps: 0, ok: false };
+    const avg = Math.round(ok.reduce((s, r) => s + r.kbps, 0) / ok.length);
+    return { kbps: avg, ok: true };
+}
+
 async function evaluateCandidates(candidates, host) {
-    const base = await Promise.all(candidates.map(ip => samplePing(ip, host)));
+    const acc = new Map();
+    for (let round = 0; round < EVAL_ROUNDS; round += 1) {
+        const roundData = await Promise.all(candidates.map(ip => samplePing(ip, host)));
+        for (const r of roundData) {
+            const old = acc.get(r.ip) || { delay: 0, jitter: 0, successRate: 0, score: 0, count: 0 };
+            old.delay += r.delay;
+            old.jitter += r.jitter;
+            old.successRate += r.successRate;
+            old.score += r.score;
+            old.count += 1;
+            acc.set(r.ip, old);
+        }
+    }
+
+    const base = Array.from(acc.entries()).map(([ip, v]) => ({
+        ip,
+        delay: Math.round(v.delay / v.count),
+        jitter: Math.round(v.jitter / v.count),
+        successRate: Number((v.successRate / v.count).toFixed(2)),
+        score: Math.round(v.score / v.count),
+        probeKbps: null
+    }));
+
     base.sort((a, b) => a.score - b.score);
 
     if (!PROBE_PATH) return base;
