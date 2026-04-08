@@ -23,7 +23,7 @@ const BAD_RUN_PAUSE_MINUTES = Number.parseInt((ARG.CF_BAD_RUN_PAUSE_MINUTES || "
 const USE_IN_PROXY = ((ARG.CF_USE_IN_PROXY || "on") + "").trim().toLowerCase();
 const OUTPUT_MODE = ((ARG.CF_OUTPUT_MODE || "plugin") + "").trim().toLowerCase();
 const GIST_FILENAME = (ARG.CF_GIST_FILE || "CF_HostMap.plugin").trim();
-const GENERATED_ICON = (ARG.CF_GENERATED_ICON || "https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Icons/cf_hostmap_sync.svg").trim();
+const GENERATED_ICON = (ARG.CF_GENERATED_ICON || "https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png").trim();
 const POST_SYNC_SCRIPT_URL = (ARG.CF_POST_SYNC_SCRIPT_URL || "https://raw.githubusercontent.com/cocktai1/Rules/refs/heads/main/Loon/Scripts/cf_post_sync_refresh.js").trim();
 const GENERATED_CRON = (ARG.CF_GENERATED_CRON || "17 * * * *").trim();
 const LOW_NOISE_MODE = ((ARG.CF_LOW_NOISE_MODE || "on") + "").trim().toLowerCase();
@@ -119,6 +119,7 @@ function domainLikelyCloudflare(ips) {
 const MIN_SWITCH_INTERVAL_MS = MIN_SWITCH_MINUTES * 60 * 1000;
 const BAD_RUN_PAUSE_MS = BAD_RUN_PAUSE_MINUTES * 60 * 1000;
 const NOTIFY_COOLDOWN_MS = NOTIFY_COOLDOWN_MINUTES * 60 * 1000;
+const PING_TIMEOUT = Math.max(1500, Math.min(4000, MAX_ACCEPT_DELAY + 700));
 
 function shouldSendNotification(channel, fingerprint) {
     const lowNoise = LOW_NOISE_MODE === "on" || LOW_NOISE_MODE === "true" || LOW_NOISE_MODE === "1";
@@ -151,7 +152,7 @@ function ping(ip, host) {
         const start = Date.now();
         const url = host ? `http://${ip}/cdn-cgi/trace` : `https://${ip}/cdn-cgi/trace`;
         const headers = host ? { "Host": host, "User-Agent": "Mozilla/5.0" } : {};
-        $httpClient.get({ url, headers, timeout: 1500, node: "DIRECT" }, (err, resp) => {
+        $httpClient.get({ url, headers, timeout: PING_TIMEOUT, node: "DIRECT" }, (err, resp) => {
             if (!err && resp && resp.status === 200) resolve({ ip, delay: Date.now() - start });
             else resolve({ ip, delay: 9999 });
         });
@@ -439,7 +440,9 @@ async function syncToGist(ip, domains) {
     const headers = { "Authorization": `token ${GITHUB_TOKEN}`, "Accept": "application/vnd.github.v3+json", "User-Agent": "Loon" };
     const withProxy = USE_IN_PROXY === "on" || USE_IN_PROXY === "true" || USE_IN_PROXY === "1";
     const hostLines = domains.map(d => withProxy ? `${d} = ${ip}, use-in-proxy=true` : `${d} = ${ip}`);
-    const hostBody = `[Host]\n# 更新时间: ${new Date().toLocaleString()}\n` + hostLines.join("\n");
+    const hostBody = hostLines.length
+        ? `[Host]\n# 更新时间: ${new Date().toLocaleString()}\n` + hostLines.join("\n")
+        : `[Host]\n# 更新时间: ${new Date().toLocaleString()}\n# 当前无有效CF域名，已清理旧映射`;
     const pluginHeader = [
         "#!name=CF HostMap Sync",
         "#!desc=由 CF 优选脚本自动生成，请勿手动编辑。",
@@ -482,7 +485,7 @@ async function syncToGist(ip, domains) {
                     const current = files[GIST_FILENAME] && typeof files[GIST_FILENAME].content === "string"
                         ? files[GIST_FILENAME].content
                         : "";
-                    const mustContain = `${domains[0]} = ${ip}`;
+                    const mustContain = domains.length > 0 ? `${domains[0]} = ${ip}` : "[Host]";
                     if (!current.includes(mustContain)) {
                         reject(new Error("verify-mismatch"));
                         return;
@@ -516,8 +519,13 @@ async function main() {
     const activeDomains = [];
     const skippedDomains = [];
 
-    for (const domain of DOMAINS) {
-        const ips = await fetchDnsResolvedIPs(domain);
+    const domainDnsPairs = await Promise.all(DOMAINS.map(async (domain) => ({
+        domain,
+        ips: await fetchDnsResolvedIPs(domain)
+    })));
+    for (const pair of domainDnsPairs) {
+        const domain = pair.domain;
+        const ips = pair.ips;
         dnsMap.set(domain, ips);
         if (domainLikelyCloudflare(ips)) {
             activeDomains.push(domain);
@@ -531,8 +539,19 @@ async function main() {
         console.log(`⚠️ 已跳过疑似非CF域名: ${skippedDomains.join(", ")}`);
     }
 
+    const currentIP = $persistentStore.read("CF_CURRENT_IP");
+    const currentDomainFingerprint = activeDomains.join("|");
+    const lastDomainFingerprint = $persistentStore.read("CF_LAST_ACTIVE_DOMAINS") || "";
+    const domainSetChanged = currentDomainFingerprint !== lastDomainFingerprint;
+
     if (activeDomains.length === 0) {
-        console.log("❌ 未检测到可用CF域名，已跳过本轮。");
+        const cleared = await syncToGist("0.0.0.0", []);
+        if (cleared) {
+            $persistentStore.write("", "CF_LAST_ACTIVE_DOMAINS");
+            console.log("ℹ️ 未检测到可用CF域名，已清理远端旧映射。");
+        } else {
+            console.log("❌ 未检测到可用CF域名，且清理远端旧映射失败。");
+        }
         $done();
         return;
     }
@@ -540,8 +559,9 @@ async function main() {
     const mainDomain = activeDomains[0];
     const domainLabel = activeDomains.length === 1 ? mainDomain : `${mainDomain} 等${activeDomains.length}域`;
     console.log(`[运行信息] 参与评估域名: ${activeDomains.join(", ")}`);
-
-    const currentIP = $persistentStore.read("CF_CURRENT_IP");
+    if (domainSetChanged) {
+        console.log("ℹ️ 检测到域名列表变更，将在本轮同步后清理旧域名映射。");
+    }
     const candidates = uniqueIPv4List([
         ...(currentIP ? [currentIP] : []),
         ...allDnsIPs,
@@ -554,17 +574,15 @@ async function main() {
         return;
     }
 
-    const domainReports = [];
-    for (const domain of activeDomains) {
+    const domainReports = await Promise.all(activeDomains.map(async (domain) => {
         const rows = await evaluateCandidates(candidates, domain);
         const resultMap = new Map(rows.map(r => [r.ip, r]));
         const dnsIPs = dnsMap.get(domain) || [];
         const dnsBest = rows
             .filter(r => dnsIPs.includes(r.ip))
             .sort((a, b) => a.score - b.score)[0] || { ip: "-", delay: 9999, jitter: 9999, successRate: 0, score: 9999, probeKbps: null };
-
-        domainReports.push({ domain, resultMap, dnsBest });
-    }
+        return { domain, resultMap, dnsBest };
+    }));
 
     const merged = aggregateMultiDomainResults(domainReports, candidates);
     const results = merged.results;
@@ -639,6 +657,7 @@ async function main() {
             $persistentStore.write("0", "CF_BAD_ROUND_COUNT");
             $persistentStore.write("0", "CF_SWITCH_PAUSE_UNTIL");
             $persistentStore.write(best.ip, "CF_CURRENT_IP");
+            $persistentStore.write(currentDomainFingerprint, "CF_LAST_ACTIVE_DOMAINS");
             $persistentStore.write(String(now), "CF_LAST_SWITCH_AT");
             $persistentStore.write(String(now), "CF_LAST_GIST_SYNC_AT");
             $persistentStore.write(JSON.stringify({
@@ -693,6 +712,22 @@ async function main() {
         } else {
             $persistentStore.write("0", "CF_BAD_ROUND_COUNT");
         }
+
+        if (domainSetChanged) {
+            const fallbackIp = currentIP || (best && best.delay < 9999 ? best.ip : "");
+            if (fallbackIp) {
+                const cleaned = await syncToGist(fallbackIp, activeDomains);
+                if (cleaned) {
+                    $persistentStore.write(currentDomainFingerprint, "CF_LAST_ACTIVE_DOMAINS");
+                    console.log(`🧹 域名列表变更已同步，旧域名映射已清理，当前映射IP=${fallbackIp}`);
+                } else {
+                    console.log("⚠️ 域名列表变更同步失败，旧域名映射可能暂未清理。");
+                }
+            } else {
+                console.log("⚠️ 域名列表已变更，但当前无可用IP用于同步清理。下轮将继续尝试。");
+            }
+        }
+
         console.log(`ℹ️ 本轮不切换: ${reason}`);
     }
     $done();
