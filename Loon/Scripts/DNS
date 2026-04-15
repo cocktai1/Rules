@@ -1,5 +1,5 @@
 #!name=DNS Direct Mapping
-#!desc=直接映射国内dns域名到ip，省去解析延迟，保留SNI
+#!desc=国内公共 DNS 域名高可用映射。跳过引导解析步骤，提升 DoH/DoH3 首次连接速度，兼顾网络隐身与解析效率。
 #!author=cocktai1
 #!icon=https://raw.githubusercontent.com/cocktai1/Rules/main/Loon/Icons/image.png
 
