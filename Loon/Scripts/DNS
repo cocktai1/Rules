@@ -1,0 +1,10 @@
+#!name=DNS Direct Mapping
+#!desc=直接映射国内dns域名到ip，省去解析延迟，保留SNI
+#!author=cocktai1
+#!icon=https://raw.githubusercontent.com/cocktai1/Rules/main/Loon/Icons/image.png
+
+[Host]
+dns.alidns.com = 223.5.5.5
+dns.alidns.com = 223.6.6.6
+doh.pub = 1.12.12.12, 
+doh.pub = 120.53.53.53
