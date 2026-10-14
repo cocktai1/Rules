@@ -15,3 +15,6 @@ DOMAIN-SUFFIX,browser-intake-datadoghq.eu
 DOMAIN-SUFFIX,browser-intake-ap1-datadoghq.com
 DOMAIN-SUFFIX,browser-intake-ap2-datadoghq.com
 DOMAIN-SUFFIX,browser-intake-uk1-datadoghq.com
+
+# 网络错误报告（可选）
+DOMAIN-SUFFIX,aefd.nelreports.net
