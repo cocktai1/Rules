@@ -1,0 +1,17 @@
+# 名称：隐私遥测与错误上报屏蔽
+# 说明：屏蔽部分崩溃报告、性能监控及遥测数据上报
+
+# ===== Sentry 错误与崩溃上报 =====
+DOMAIN-SUFFIX,o33249.ingest.us.sentry.io
+
+# ===== 网络错误报告 =====
+DOMAIN-SUFFIX,aefd.nelreports.net
+
+# ===== Datadog 用户行为与性能监控 =====
+DOMAIN-SUFFIX,browser-intake-datadoghq.com
+DOMAIN-SUFFIX,browser-intake-us3-datadoghq.com
+DOMAIN-SUFFIX,browser-intake-us5-datadoghq.com
+DOMAIN-SUFFIX,browser-intake-datadoghq.eu
+DOMAIN-SUFFIX,browser-intake-ap1-datadoghq.com
+DOMAIN-SUFFIX,browser-intake-ap2-datadoghq.com
+DOMAIN-SUFFIX,browser-intake-uk1-datadoghq.com
