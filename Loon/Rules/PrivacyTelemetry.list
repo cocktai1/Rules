@@ -1,8 +1,9 @@
 # 名称：隐私遥测与错误上报屏蔽
-# 说明：屏蔽部分崩溃报告、性能监控及遥测数据上报
+# 说明：拦截部分崩溃报告、性能监控及遥测上报，可能影响故障诊断
 
 # ===== Sentry 错误与崩溃上报 =====
 DOMAIN-SUFFIX,o33249.ingest.us.sentry.io
+DOMAIN-SUFFIX,o324374.ingest.sentry.io
 
 # ===== 网络错误报告 =====
 DOMAIN-SUFFIX,aefd.nelreports.net
@@ -16,5 +17,11 @@ DOMAIN-SUFFIX,browser-intake-ap1-datadoghq.com
 DOMAIN-SUFFIX,browser-intake-ap2-datadoghq.com
 DOMAIN-SUFFIX,browser-intake-uk1-datadoghq.com
 
-# 网络错误报告（可选）
-DOMAIN-SUFFIX,aefd.nelreports.net
+# ===== Notion 日志收集 =====
+DOMAIN-SUFFIX,http-inputs-notion.splunkcloud.com
+
+# ===== Next.js 遥测 =====
+DOMAIN-SUFFIX,telemetry.nextjs.org
+
+# ===== Adblock Plus 遥测 =====
+DOMAIN-SUFFIX,adblockplus.telemetry.eyeo.com
