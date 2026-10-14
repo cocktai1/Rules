@@ -2,6 +2,7 @@
 # 说明：保守拦截常见 PCDN / P2P 相关域名，可能会影响正常使用
 
 # ===== 腾讯音乐 P2P =====
+DOMAIN-SUFFIX,musicpunch.p2p.qq.com
 DOMAIN-SUFFIX,musicstun.p2p.qq.com
 DOMAIN-SUFFIX,musicps.p2p.qq.com
 DOMAIN-SUFFIX,twns.p2ptun.qq.com
